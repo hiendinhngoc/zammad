@@ -1,7 +1,9 @@
-# encoding: utf-8
+
 require 'integration_test_helper'
 
 class ZendeskImportTest < ActiveSupport::TestCase
+  self.test_order = :sorted
+  self.use_transactional_tests = false
 
   if !ENV['IMPORT_ZENDESK_ENDPOINT']
     raise "ERROR: Need IMPORT_ZENDESK_ENDPOINT - hint IMPORT_ZENDESK_ENDPOINT='https://example.zendesk.com/api/v2'"
@@ -18,34 +20,63 @@ class ZendeskImportTest < ActiveSupport::TestCase
   Setting.set('import_zendesk_endpoint_username', ENV['IMPORT_ZENDESK_ENDPOINT_USERNAME'])
   Setting.set('import_mode', true)
   Setting.set('system_init_done', false)
-  Import::Zendesk.start
+
+  job = ImportJob.create(name: 'Import::Zendesk')
+  job.start
 
   # check statistic count
   test 'check statistic' do
 
-    remote_statistic = Import::Zendesk.statistic
-
     # retrive statistic
     compare_statistic = {
-      'Tickets'            => 143,
-      'TicketFields'       => 13,
-      'UserFields'         => 2,
-      'OrganizationFields' => 2,
-      'Groups'             => 2,
-      'Organizations'      => 1,
-      'Users'              => 141,
-      'GroupMemberships'   => 3,
-      'Macros'             => 5,
-      'Views'              => 19,
-      'Automations'        => 5
+      Groups: {
+        skipped:     0,
+        created:     2,
+        updated:     0,
+        unchanged:   0,
+        failed:      0,
+        deactivated: 0,
+        sum:         2,
+        total:       2
+      },
+      Users: {
+        skipped:     0,
+        created:     141,
+        updated:     0,
+        unchanged:   0,
+        failed:      0,
+        deactivated: 0,
+        sum:         141,
+        total:       141
+      },
+      Organizations: {
+        skipped:     0,
+        created:     1,
+        updated:     0,
+        unchanged:   0,
+        failed:      0,
+        deactivated: 0,
+        sum:         1,
+        total:       1
+      },
+      Tickets: {
+        skipped:     0,
+        created:     142,
+        updated:     1,
+        unchanged:   0,
+        failed:      0,
+        deactivated: 0,
+        sum:         143,
+        total:       143
+      }
     }
 
-    assert_equal(compare_statistic, remote_statistic, 'statistic')
+    assert_equal(compare_statistic.with_indifferent_access, job.result, 'statistic')
   end
 
   # check count of imported items
   test 'check counts' do
-    assert_equal(143, User.count, 'users')
+    assert_equal(144, User.count, 'users')
     assert_equal(3, Group.count, 'groups')
     assert_equal(3, Role.count, 'roles')
     assert_equal(2, Organization.count, 'organizations')
@@ -69,7 +100,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
 
     checks = [
       {
-        id:   4,
+        id:   5,
         data: {
           firstname:     'Bob',
           lastname:      'Smith',
@@ -83,7 +114,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [group_support],
       },
       {
-        id:   5,
+        id:   6,
         data: {
           firstname:     'Hansimerkur',
           lastname:      '',
@@ -96,7 +127,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [group_additional_group, group_support],
       },
       {
-        id:   6,
+        id:   7,
         data: {
           firstname: 'Bernd',
           lastname:  'Hofbecker',
@@ -108,7 +139,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [],
       },
       {
-        id:   7,
+        id:   8,
         data: {
           firstname: 'Zendesk',
           lastname:  '',
@@ -120,7 +151,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [],
       },
       {
-        id:   89,
+        id:   90,
         data: {
           firstname: 'Hans',
           lastname:  'Peter Wurst',
@@ -153,7 +184,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
   # check user fields
   test 'check user fields' do
     local_fields = User.column_names
-    copmare_fields = %w(
+    copmare_fields = %w[
       id
       organization_id
       login
@@ -191,7 +222,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
       updated_at
       lieblingstier
       custom_dropdown
-    )
+    ]
 
     assert_equal(copmare_fields, local_fields, 'user fields')
   end
@@ -273,7 +304,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
   # check organization fields
   test 'check organization fields' do
     local_fields = Organization.column_names
-    copmare_fields = %w(
+    copmare_fields = %w[
       id
       name
       shared
@@ -287,7 +318,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
       updated_at
       api_key
       custom_dropdown
-    )
+    ]
 
     assert_equal(copmare_fields, local_fields, 'organization fields')
   end
@@ -309,7 +340,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
           group_id:                 3,
           priority_id:              3,
           owner_id:                 1,
-          customer_id:              6,
+          customer_id:              7,
           organization_id:          2,
           test_checkbox:            true,
           custom_integer:           999,
@@ -332,7 +363,7 @@ If you\'re reading this message in your email, click the ticket number link that
           group_id:                 3,
           priority_id:              1,
           owner_id:                 1,
-          customer_id:              7,
+          customer_id:              8,
           organization_id:          nil,
           test_checkbox:            false,
           custom_integer:           nil,
@@ -353,7 +384,7 @@ If you\'re reading this message in your email, click the ticket number link that
           group_id:                 3,
           priority_id:              2,
           owner_id:                 1,
-          customer_id:              91,
+          customer_id:              92,
           organization_id:          nil,
         },
       },
@@ -369,7 +400,7 @@ If you\'re reading this message in your email, click the ticket number link that
           group_id:                 1,
           priority_id:              2,
           owner_id:                 1,
-          customer_id:              143,
+          customer_id:              144,
           organization_id:          nil,
         },
       },
@@ -454,7 +485,7 @@ If you\'re reading this message in your email, click the ticket number link that
   # check ticket fields
   test 'check ticket fields' do
     local_fields = Ticket.column_names
-    copmare_fields = %w(
+    copmare_fields = %w[
       id
       group_id
       priority_id
@@ -498,7 +529,7 @@ If you\'re reading this message in your email, click the ticket number link that
       custom_integer
       custom_regex
       custom_drop_down
-    )
+    ]
 
     assert_equal(copmare_fields, local_fields, 'ticket fields')
   end

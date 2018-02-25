@@ -108,13 +108,33 @@ returns
     cache = Cache.get(key)
     return cache if cache
 
-    # get relations
     attributes = self.attributes
-    self.class.reflect_on_all_associations.map do |assoc|
-      next if association_attributes_ignored.include?(assoc.name)
-      real_ids = assoc.name.to_s[0, assoc.name.to_s.length - 1] + '_ids'
-      next if !respond_to?(real_ids)
-      attributes[real_ids] = send(real_ids)
+    relevant   = %i[has_and_belongs_to_many has_many]
+    eager_load = []
+    pluck      = []
+    keys       = []
+    self.class.reflect_on_all_associations.each do |assoc|
+      next if relevant.exclude?(assoc.macro)
+
+      assoc_name = assoc.name
+      next if association_attributes_ignored.include?(assoc_name)
+
+      eager_load.push(assoc_name)
+      pluck.push("#{assoc.table_name}.id")
+      keys.push("#{assoc_name.to_s.singularize}_ids")
+    end
+
+    if eager_load.present?
+      ids = self.class.eager_load(eager_load)
+                .where(id: id)
+                .pluck(*pluck)
+
+      if keys.size > 1
+        values = ids.transpose.map(&:compact).map(&:uniq)
+        attributes.merge!( keys.zip( values ).to_h )
+      else
+        attributes[ keys.first ] = ids.compact
+      end
     end
 
     # special handling for group access associations
@@ -160,7 +180,7 @@ returns
           next if !item[:name]
           attributes[assoc.name.to_s].push item[:name]
         end
-        if ref.count.positive? && attributes[assoc.name.to_s].empty?
+        if ref.count.positive? && attributes[assoc.name.to_s].blank?
           attributes.delete(assoc.name.to_s)
         end
         next
@@ -196,7 +216,7 @@ returns
 
   def filter_attributes(attributes)
     # remove forbitten attributes
-    %w(password token tokens token_ids).each do |item|
+    %w[password token tokens token_ids].each do |item|
       attributes.delete(item)
     end
   end
@@ -217,7 +237,7 @@ returns
   def association_id_validation(attribute_id, value)
     return true if value.nil?
 
-    attributes.each do |key, _value|
+    attributes.each_key do |key|
       next if key != attribute_id
 
       # check if id is assigned
@@ -319,15 +339,14 @@ returns
           class_object = assoc.klass
           lookup = nil
           if class_object == User
-            if value.instance_of?(String)
-              if !lookup
-                lookup = class_object.lookup(login: value)
-              end
-              if !lookup
-                lookup = class_object.lookup(email: value)
-              end
-            else
+            if !value.instance_of?(String)
               raise ArgumentError, "String is needed as ref value #{value.inspect} for '#{assoc_name}'"
+            end
+            if !lookup
+              lookup = class_object.lookup(login: value)
+            end
+            if !lookup
+              lookup = class_object.lookup(email: value)
             end
           else
             lookup = class_object.lookup(name: value)
@@ -347,7 +366,7 @@ returns
         end
 
         next if !value.instance_of?(Array)
-        next if value.empty?
+        next if value.blank?
         next if !value[0].instance_of?(String)
 
         # handle _ids values
@@ -363,15 +382,14 @@ returns
         value.each do |item|
           lookup = nil
           if class_object == User
-            if item.instance_of?(String)
-              if !lookup
-                lookup = class_object.lookup(login: item)
-              end
-              if !lookup
-                lookup = class_object.lookup(email: item)
-              end
-            else
+            if !item.instance_of?(String)
               raise ArgumentError, "String is needed in array ref as ref value #{value.inspect} for '#{assoc_name}'"
+            end
+            if !lookup
+              lookup = class_object.lookup(login: item)
+            end
+            if !lookup
+              lookup = class_object.lookup(email: item)
             end
           else
             lookup = class_object.lookup(name: item)

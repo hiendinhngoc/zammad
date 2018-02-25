@@ -97,6 +97,7 @@ class App.ControllerTable extends App.Controller
   checkBoxColWidth: 40
   radioColWidth: 22
   sortableColWidth: 36
+  destroyColWidth: 70
 
   elements:
     '.js-tableHead': 'tableHead'
@@ -111,6 +112,9 @@ class App.ControllerTable extends App.Controller
   radio:              false
   renderState:        undefined
   groupBy:            undefined
+
+  shownPerPage: 150
+  shownPage: 0
 
   destroy: false
 
@@ -130,6 +134,8 @@ class App.ControllerTable extends App.Controller
   customOrderDirection: undefined
   customOrderBy: undefined
 
+  frontendTimeUpdateExecute: true
+
   bindCol: {}
   bindRow: {}
 
@@ -141,9 +147,7 @@ class App.ControllerTable extends App.Controller
     @overviewAttributes ||= @overview || @model.configure_overview || []
     @attributesListRaw ||= @attribute_list || @model.configure_attributes || {}
     @attributesList = App.Model.attributesGet(false, @attributesListRaw)
-    console.log('Table', @overviewAttributes, @overview)
-    #@setHeaderWidths = App.Model.setHeaderWidthsGet(false, @attributesList)
-    @destroy    = @model.configure_delete
+    @destroy = @model.configure_delete
 
     throw 'overviewAttributes needed' if _.isEmpty(@overviewAttributes)
     throw 'attributesList needed' if _.isEmpty(@attributesList)
@@ -168,19 +172,39 @@ class App.ControllerTable extends App.Controller
     $(window).off 'resize.table', @onResize
 
   update: (params) =>
-    console.log('params', params)
-    for key, value of params
-      @[key] = value
-
     if params.sync is true
+      for key, value of params
+        @[key] = value
       return @render()
-    @renderQueue()
+    @renderQueue(params)
 
-  renderQueue: =>
-    App.QueueManager.add('tableRender', @render)
+  renderQueue: (params) =>
+    localeRender = =>
+      for key, value of params
+        @[key] = value
+      @render()
+    App.QueueManager.add('tableRender', localeRender)
     App.QueueManager.run('tableRender')
 
+  renderPager: (el, find = false) =>
+    pages = parseInt(((@objects.length - 1)  / @shownPerPage))
+    if pages < 1
+      if find
+        el.find('.js-pager').html('')
+      else
+        el.filter('.js-pager').html('')
+      return
+    pager = App.view('generic/table_pager')(
+      page:    @shownPage
+      pages:   pages
+    )
+    if find
+      el.find('.js-pager').html(pager)
+    else
+      el.filter('.js-pager').html(pager)
+
   render: =>
+    @setMaxPage()
     if @renderState is undefined
 
       # check if table is empty
@@ -214,8 +238,12 @@ class App.ControllerTable extends App.Controller
       removedRows = _.difference(@currentRows, newRows)
       addedRows = _.difference(newRows, @currentRows)
 
+      @log 'debug', 'table newRows', newRows
+      @log 'debug', 'table removedRows', removedRows
+      @log 'debug', 'table addedRows', addedRows
+
       # if only rows are removed
-      if _.isEmpty(addedRows) && !_.isEmpty(removedRows) && removedRows.length < 15 && !_.isEmpty(newRows)
+      if (!_.isEmpty(addedRows) || !_.isEmpty(removedRows)) && addedRows.length < 10 && removedRows.length < 15 && removedRows.length < newRows.length && !_.isEmpty(newRows)
         newCurrentRows = []
         removePositions = []
         for position in [0..@currentRows.length-1]
@@ -223,29 +251,44 @@ class App.ControllerTable extends App.Controller
             removePositions.push position
           else
             newCurrentRows.push @currentRows[position]
+        addPositions = []
+        for position in [0..newRows.length-1]
+          if _.contains(addedRows, newRows[position])
+            addPositions.push position
+            newCurrentRows.splice(position,0,newRows[position])
 
         # check if order is still correct
         if @_isSame(newRows, newCurrentRows) is true
           for position in removePositions.reverse()
             @$("tbody > tr:nth-child(#{position+1})").remove()
+          for position in addPositions
+            if position is 0
+              if @$('tbody tr:nth-child(1)').get(0)
+                @$('tbody tr:nth-child(1)').before(newCurrentRows[position])
+              else
+                @$('tbody').append(newCurrentRows[position])
+            else
+              @$("tbody > tr:nth-child(#{position})").after(newCurrentRows[position])
           @currentRows = newCurrentRows
-          console.log('fullRender.contentRemoved', removePositions)
-          return ['fullRender.contentRemoved', removePositions]
+          @log 'debug', 'table.fullRender.contentRemoved', removePositions, addPositions
+          @renderPager(@el, true)
+          @frontendTimeUpdateElement(@el) if @frontendTimeUpdateExecute is true
+          return ['fullRender.contentRemoved', removePositions, addPositions]
 
       if newRows.length isnt @currentRows.length
         result = ['fullRender.lenghtChanged', @currentRows.length, newRows.length]
         @renderTableFull(newRows)
-        console.log('result', result)
+        @log 'debug', 'table.fullRender.lenghtChanged', result
         return result
 
       # compare rows
       result = @_isSame(newRows, @currentRows)
       if result isnt true
         @renderTableFull(newRows)
-        console.log('result', "fullRender.contentChanged|row(#{result})")
+        @log 'debug', "table.fullRender.contentChanged|row(#{result})"
         return ['fullRender.contentChanged', result]
 
-    console.log('result', 'noChanges')
+    @log 'debug', 'table.noChanges'
     return ['noChanges']
 
   renderEmptyList: =>
@@ -254,7 +297,7 @@ class App.ControllerTable extends App.Controller
     )
 
   renderTableFull: (rows) =>
-    console.log('renderTableFull', @orderBy, @orderDirection)
+    @log 'debug', 'table.renderTableFull', @orderBy, @orderDirection
     @tableHeaders()
     @sortList()
     bulkIds = @getBulkSelected()
@@ -265,6 +308,9 @@ class App.ControllerTable extends App.Controller
     else
       @currentRows = clone(rows)
     container.find('.js-tableBody').html(rows)
+    @frontendTimeUpdateElement(container) if @frontendTimeUpdateExecute is true
+
+    @renderPager(container)
 
     cursorMap =
       click:    'pointer'
@@ -386,6 +432,17 @@ class App.ControllerTable extends App.Controller
         update: @dndCallback
       container.find('tbody').sortable(dndOptions)
 
+    # click on pager
+    container.delegate('.js-page', 'click', (e) =>
+      e.stopPropagation()
+      page = $(e.currentTarget).attr 'data-page'
+      render = =>
+        @shownPage = page
+        @renderTableFull()
+      App.QueueManager.add('tableRender', render)
+      App.QueueManager.run('tableRender')
+    )
+
     @el.html(container)
     @setBulkSelected(bulkIds)
 
@@ -408,14 +465,16 @@ class App.ControllerTable extends App.Controller
       columnsLength++
     groupLast = ''
     tableBody = []
-    for object in @objects
-      position++
-      if @groupBy
-        groupByName = App.viewPrint(object, @groupBy, @attributesList)
-        if groupLast isnt groupByName
-          groupLast = groupByName
-          tableBody.push @renderTableGroupByRow(object, position, groupByName)
-      tableBody.push @renderTableRow(object, position)
+    objectsToShow = @objectsOfPage(@shownPage)
+    for object in objectsToShow
+      if object
+        position++
+        if @groupBy
+          groupByName = App.viewPrint(object, @groupBy, @attributesList)
+          if groupLast isnt groupByName
+            groupLast = groupByName
+            tableBody.push @renderTableGroupByRow(object, position, groupByName)
+        tableBody.push @renderTableRow(object, position)
     tableBody
 
   renderTableGroupByRow: (object, position, groupByName) =>
@@ -445,14 +504,14 @@ class App.ControllerTable extends App.Controller
     orderBy = @customOrderBy || @orderBy
     orderDirection = @customOrderDirection || @orderDirection
 
-    #console.log('LLL', @lastOrderBy, @orderBy, @lastOrderDirection, @orderDirection, @overviewAttributes, @lastOverview)
     if @headers && @lastOrderBy is orderBy && @lastOrderDirection is orderDirection && !@tableHeadersHasChanged()
-      console.log('tableHeaders: same overviewAttributes just return headers', @headers)
+      @log 'debug', 'table.Headers: same overviewAttributes just return headers', @headers
       return ['headers are the same', @headers]
     @lastOverview = @overviewAttributes
 
     # get header data
     @headers = []
+    availableWidth = @availableWidth
     for item in @overviewAttributes
       headerFound = false
       for attributeName, attribute of @attributesList
@@ -467,7 +526,7 @@ class App.ControllerTable extends App.Controller
             # e.g. column: owner
             headerFound = true
             if @headerWidth[attribute.name]
-              attribute.displayWidth = @headerWidth[attribute.name] * @availableWidth
+              attribute.displayWidth = @headerWidth[attribute.name] * availableWidth
             else if !attribute.width
               attribute.displayWidth = @baseColWidth
             else
@@ -476,7 +535,7 @@ class App.ControllerTable extends App.Controller
               unit = attribute.width.match(/[px|%]+/)[0]
 
               if unit is '%'
-                attribute.displayWidth = value / 100 * @el.width()
+                attribute.displayWidth = value / 100 * availableWidth
               else
                 attribute.displayWidth = value
             @headers.push attribute
@@ -485,7 +544,7 @@ class App.ControllerTable extends App.Controller
             if attributeName is "#{item}_id" || attributeName is "#{item}_ids"
               headerFound = true
               if @headerWidth[attribute.name]
-                attribute.displayWidth = @headerWidth[attribute.name] * @availableWidth
+                attribute.displayWidth = @headerWidth[attribute.name] * availableWidth
               else if !attribute.width
                 attribute.displayWidth = @baseColWidth
               else
@@ -494,7 +553,7 @@ class App.ControllerTable extends App.Controller
                 unit = attribute.width.match(/[px|%]+/)[0]
 
                 if unit is '%'
-                  attribute.displayWidth = value / 100 * @el.width()
+                  attribute.displayWidth = value / 100 * availableWidth
                 else
                   attribute.displayWidth = value
               @headers.push attribute
@@ -528,8 +587,17 @@ class App.ControllerTable extends App.Controller
     @columnsLength = @headers.length
     if @checkbox || @radio
       @columnsLength++
-    console.log('tableHeaders: new headers', @headers)
+    @log 'debug', 'table.Headers: new headers', @headers
     ['new headers', @headers]
+
+  setMaxPage: =>
+    pages = parseInt(((@objects.length - 1)  / @shownPerPage))
+    if parseInt(@shownPage) > pages
+      @shownPage = pages
+
+  objectsOfPage: (page = 0) =>
+    page = parseInt(page)
+    @objects.slice(page * @shownPerPage, (page + 1) * @shownPerPage)
 
   sortList: =>
     return if _.isEmpty(@objects)
@@ -537,8 +605,8 @@ class App.ControllerTable extends App.Controller
     orderBy = @customOrderBy || @orderBy
     orderDirection = @customOrderDirection || @orderDirection
 
-    console.log('order', @orderBy, @orderDirection)
-    console.log('customOrder', @customOrderBy, @customOrderDirection)
+    @log 'debug', 'table.order', @orderBy, @orderDirection
+    @log 'debug', 'table.customOrder', @customOrderBy, @customOrderDirection
 
     return if _.isEmpty(orderBy) && _.isEmpty(@groupBy)
 
@@ -546,12 +614,19 @@ class App.ControllerTable extends App.Controller
     @lastOrderDirection = orderDirection
     @lastOrderBy = orderBy
 
+    localObjects is undefined
     if orderBy
       for header in @headers
-        if header.name is orderBy || "#{header.name}_id" is orderBy
+        if header.name is orderBy || "#{header.name}_id" is orderBy || header.name is "#{orderBy}_id"
           localObjects = _.sortBy(
             @objects
             (item) ->
+
+              # error handling
+              if !item
+                console.log('Got empty object in order by with header _.sortBy')
+                return ''
+
               # if we need to sort translated col.
               if header.translate
                 return App.i18n.translateInline(item[header.name])
@@ -580,12 +655,18 @@ class App.ControllerTable extends App.Controller
       # in case order by is not in show column, use orderBy attribute
       if !localObjects
         for attributeName, attribute of @attributesList
-          if attributeName is orderBy || "#{attributeName}_id" is orderBy
+          if attributeName is orderBy || "#{attributeName}_id" is orderBy || attributeName is "#{orderBy}_id"
 
             # order by
             localObjects = _.sortBy(
               @objects
               (item) ->
+
+                # error handling
+                if !item
+                  console.log('Got empty object in order by in attribute _.sortBy')
+                  return ''
+
                 # if we need to sort translated col.
                 if attribute.translate
                   return App.i18n.translateInline(item[attribute.name])
@@ -647,10 +728,9 @@ class App.ControllerTable extends App.Controller
         localObjects = localObjects.concat groupObjects[group]
         groupObjects[group] = [] # release old array
 
+    return if localObjects is undefined
     @objects = localObjects
     @lastSortedobjects = localObjects
-
-    localObjects
 
   # bind on delete dialog
   deleteRow: (id, e) =>
@@ -667,8 +747,10 @@ class App.ControllerTable extends App.Controller
     if @availableWidth is 0
       @availableWidth = @minTableWidth
 
+    availableWidth = @availableWidth
+
     widths = @getHeaderWidths()
-    shrinkBy = Math.ceil (widths - @availableWidth) / @getShrinkableHeadersCount()
+    shrinkBy = Math.ceil (widths - availableWidth) / @getShrinkableHeadersCount()
 
     # make all cols evenly smaller
     @headers = _.map @headers, (col) =>
@@ -677,7 +759,8 @@ class App.ControllerTable extends App.Controller
       return col
 
     # give left-over space from rounding to last column to get to 100%
-    roundingLeftOver = @availableWidth - @getHeaderWidths()
+    roundingLeftOver = availableWidth - @getHeaderWidths()
+
     # but only if there is something left over (will get negative when there are too many columns for each column to stay in their min width)
     if roundingLeftOver > 0
       @headers[@headers.length - 1].displayWidth = @headers[@headers.length - 1].displayWidth + roundingLeftOver
@@ -702,6 +785,9 @@ class App.ControllerTable extends App.Controller
 
     if @dndCallback
       widths += @sortableColWidth
+
+    if @destroy
+      widths += @destroyColWidth
 
     widths
 

@@ -156,6 +156,26 @@ Setting.create_if_not_exists(
   },
   frontend: true
 )
+Setting.create_if_not_exists(
+  title: 'Locale',
+  name: 'locale_default',
+  area: 'System::Branding',
+  description: 'Defines the system default language.',
+  options: {
+    form: [
+      {
+        name: 'locale_default',
+      }
+    ],
+  },
+  state: 'en-us',
+  preferences: {
+    prio: 8,
+    controller: 'SettingsAreaItemDefaultLocale',
+    permission: ['admin.system'],
+  },
+  frontend: true
+)
 Setting.create_or_update(
   title: 'Pretty Date',
   name: 'pretty_date_format',
@@ -217,7 +237,7 @@ Setting.create_if_not_exists(
   title: 'Fully Qualified Domain Name',
   name: 'fqdn',
   area: 'System::Base',
-  description: 'Defines the fully qualified domain name of the system. This setting is used as a variable, #{setting.fqdn} which is found in all forms of messaging used by the application, to build links to the tickets within your system.',
+  description: 'Defines the fully qualified domain name of the system. This setting is used as a variable, #{setting.fqdn} which is found in all forms of messaging used by the application, to build links to the tickets within your system.', # rubocop:disable Lint/InterpolationCheck
   options: {
     form: [
       {
@@ -678,6 +698,47 @@ Setting.create_if_not_exists(
   },
   frontend: true
 )
+Setting.create_if_not_exists(
+  title: 'Set notes for ticket create types.',
+  name: 'ui_ticket_create_notes',
+  area: 'UI::TicketCreate',
+  description: 'Set notes for ticket create types by selecting type.',
+  options: {},
+  state: {
+    #'email-out' => 'Attention: When creating a ticket an e-mail is sent.',
+  },
+  preferences: {
+    permission: ['admin.ui'],
+  },
+  frontend: true
+)
+
+Setting.create_if_not_exists(
+  title: 'Open ticket indicator',
+  name: 'ui_sidebar_open_ticket_indicator_colored',
+  area: 'UI::Sidebar',
+  description: 'Color representation of the open ticket indicator in the sidebar.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: true,
+        name: 'ui_sidebar_open_ticket_indicator_colored',
+        tag: 'boolean',
+        translate: true,
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  state: false,
+  preferences: {
+    permission: ['admin.ui'],
+  },
+  frontend: true
+)
 
 Setting.create_if_not_exists(
   title: 'New User Accounts',
@@ -773,7 +834,7 @@ Setting.create_if_not_exists(
     uid: 'mail',
     base: 'dc=example,dc=org',
     always_filter: '',
-    always_roles: %w(Admin Agent),
+    always_roles: %w[Admin Agent],
     always_groups: ['Users'],
     sync_params: {
       firstname: 'sn',
@@ -1275,6 +1336,63 @@ Setting.create_if_not_exists(
 )
 
 Setting.create_if_not_exists(
+  title: 'Authentication via %s',
+  name: 'auth_weibo',
+  area: 'Security::ThirdPartyAuthentication',
+  description: 'Enables user authentication via %s. Register your app first at [%s](%s).',
+  options: {
+    form: [
+      {
+        display: '',
+        null: true,
+        name: 'auth_weibo',
+        tag: 'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  preferences: {
+    controller: 'SettingsAreaSwitch',
+    sub: ['auth_weibo_credentials'],
+    title_i18n: ['Weibo'],
+    description_i18n: ['Sina Weibo', 'Sina Weibo Open Protal', 'http://open.weibo.com'],
+    permission: ['admin.security'],
+  },
+  state: false,
+  frontend: true
+)
+Setting.create_if_not_exists(
+  title: 'Weibo App Credentials',
+  name: 'auth_weibo_credentials',
+  area: 'Security::ThirdPartyAuthentication::Weibo',
+  description: 'Enables user authentication via Weibo.',
+  options: {
+    form: [
+      {
+        display: 'App ID',
+        null: true,
+        name: 'client_id',
+        tag: 'input',
+      },
+      {
+        display: 'App Secret',
+        null: true,
+        name: 'client_secret',
+        tag: 'input',
+      },
+    ],
+  },
+  state: {},
+  preferences: {
+    permission: ['admin.security'],
+  },
+  frontend: false
+)
+
+Setting.create_if_not_exists(
   title: 'Minimum length',
   name: 'password_min_size',
   area: 'Security::Password',
@@ -1504,7 +1622,7 @@ Setting.create_if_not_exists(
   },
   state: 'Ticket::Number::Increment',
   preferences: {
-    settings_included: %w(ticket_number_increment ticket_number_date),
+    settings_included: %w[ticket_number_increment ticket_number_date],
     controller: 'SettingsAreaTicketNumber',
     permission: ['admin.ticket'],
   },
@@ -1588,6 +1706,34 @@ Setting.create_if_not_exists(
   },
   state: {
     checksum: false
+  },
+  preferences: {
+    permission: ['admin.ticket'],
+    hidden: true,
+  },
+  frontend: false
+)
+Setting.create_if_not_exists(
+  title: 'Ticket Number ignore system_id',
+  name: 'ticket_number_ignore_system_id',
+  area: 'Ticket::Core',
+  description: '-',
+  options: {
+    form: [
+      {
+        display: 'Ignore system_id',
+        null: true,
+        name: 'ticket_number_ignore_system_id',
+        tag: 'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  state: {
+    ticket_number_ignore_system_id: false
   },
   preferences: {
     permission: ['admin.ticket'],
@@ -1966,6 +2112,32 @@ Setting.create_if_not_exists(
 )
 
 Setting.create_if_not_exists(
+  title: 'Customer selection based on sender and receiver list',
+  name: 'postmaster_sender_is_agent_search_for_customer',
+  area: 'Email::Base',
+  description: 'If the sender is an agent, set the first user in the recipient list as a customer.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: true,
+        name: 'postmaster_sender_is_agent_search_for_customer',
+        tag: 'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  state: true,
+  preferences: {
+    permission: ['admin.channel_email'],
+  },
+  frontend: false
+)
+
+Setting.create_if_not_exists(
   title: 'Notification Sender',
   name: 'notification_sender',
   area: 'Email::Base',
@@ -1980,7 +2152,7 @@ Setting.create_if_not_exists(
       },
     ],
   },
-  state: 'Notification Master <noreply@#{config.fqdn}>',
+  state: 'Notification Master <noreply@#{config.fqdn}>', # rubocop:disable Lint/InterpolationCheck
   preferences: {
     online_service_disable: true,
     permission: ['admin.channel_email'],
@@ -2207,6 +2379,15 @@ Setting.create_if_not_exists(
   area: 'SearchIndex::Elasticsearch',
   description: 'Define max. attachment size for Elasticsearch.',
   state: 50,
+  preferences: { online_service_disable: true },
+  frontend: false
+)
+Setting.create_if_not_exists(
+  title: 'Elasticsearch Pipeline Name',
+  name: 'es_pipeline',
+  area: 'SearchIndex::Elasticsearch',
+  description: 'Define pipeline name for Elasticsearch.',
+  state: '',
   preferences: { online_service_disable: true },
   frontend: false
 )
@@ -2652,6 +2833,15 @@ Setting.create_if_not_exists(
   frontend: false
 )
 Setting.create_if_not_exists(
+  title: 'Defines postmaster filter.',
+  name: '5300_postmaster_filter_monit',
+  area: 'Postmaster::PreFilter',
+  description: 'Defines postmaster filter to manage Monit (https://mmonit.com/monit/) emails.',
+  options: {},
+  state: 'Channel::Filter::Monit',
+  frontend: false
+)
+Setting.create_if_not_exists(
   title: 'Icinga integration',
   name: 'icinga_integration',
   area: 'Integration::Switch',
@@ -2953,6 +3143,106 @@ Setting.create_if_not_exists(
   options: {},
   state: SecureRandom.hex(16),
   preferences: {
+    permission: ['admin.integration'],
+  },
+  frontend: false
+)
+Setting.create_if_not_exists(
+  title: 'Monit integration',
+  name: 'monit_integration',
+  area: 'Integration::Switch',
+  description: 'Defines if Monit (https://mmonit.com/monit/) is enabled or not.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: true,
+        name: 'monit_integration',
+        tag: 'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+      },
+    ],
+  },
+  state: false,
+  preferences: {
+    prio: 1,
+    permission: ['admin.integration'],
+  },
+  frontend: false
+)
+Setting.create_if_not_exists(
+  title: 'Sender',
+  name: 'monit_sender',
+  area: 'Integration::Monit',
+  description: 'Defines the sender email address of the service emails.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: false,
+        name: 'monit_sender',
+        tag: 'input',
+        placeholder: 'monit@monitoring.example.com',
+      },
+    ],
+  },
+  state: 'monit@monitoring.example.com',
+  preferences: {
+    prio: 2,
+    permission: ['admin.integration'],
+  },
+  frontend: false,
+)
+Setting.create_if_not_exists(
+  title: 'Auto close',
+  name: 'monit_auto_close',
+  area: 'Integration::Monit',
+  description: 'Defines if tickets should be closed if service is recovered.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: true,
+        name: 'monit_auto_close',
+        tag: 'boolean',
+        options: {
+          true  => 'yes',
+          false => 'no',
+        },
+        translate: true,
+      },
+    ],
+  },
+  state: true,
+  preferences: {
+    prio: 3,
+    permission: ['admin.integration'],
+  },
+  frontend: false
+)
+Setting.create_if_not_exists(
+  title: 'Auto close state',
+  name: 'monit_auto_close_state_id',
+  area: 'Integration::Monit',
+  description: 'Defines the state of auto closed tickets.',
+  options: {
+    form: [
+      {
+        display: '',
+        null: false,
+        name: 'monit_auto_close_state_id',
+        tag: 'select',
+        relation: 'TicketState',
+        translate: true,
+      },
+    ],
+  },
+  state: 4,
+  preferences: {
+    prio: 4,
     permission: ['admin.integration'],
   },
   frontend: false

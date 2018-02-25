@@ -1,4 +1,4 @@
-# encoding: utf-8
+
 require 'test_helper'
 
 class UserTest < ActiveSupport::TestCase
@@ -42,7 +42,25 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#3 - simple create - nil as lastname',
+        name: '#3 - simple create - no firstname',
+        create: {
+          firstname: '',
+          lastname: 'Firstname Lastname',
+          email: 'some@example.com',
+          login: 'some@example.com',
+          updated_by_id: 1,
+          created_by_id: 1,
+        },
+        create_verify: {
+          firstname: 'Firstname',
+          lastname: 'Lastname',
+          image: nil,
+          email: 'some@example.com',
+          login: 'some@example.com',
+        },
+      },
+      {
+        name: '#4 - simple create - nil as lastname',
         create: {
           firstname: 'Firstname Lastname',
           lastname: '',
@@ -60,7 +78,7 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#4 - simple create - no lastname, firstname with ","',
+        name: '#5 - simple create - no lastname, firstname with ","',
         create: {
           firstname: 'Lastname, Firstname',
           lastname: '',
@@ -77,7 +95,7 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#5 - simple create - no lastname/firstname',
+        name: '#6 - simple create - no lastname/firstname',
         create: {
           firstname: '',
           lastname: '',
@@ -95,7 +113,7 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#6 - simple create - no lastname/firstnam',
+        name: '#7 - simple create - no lastname/firstnam',
         create: {
           firstname: '',
           lastname: '',
@@ -112,7 +130,7 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#7 - simple create - nill as fristname and lastname',
+        name: '#8 - simple create - nill as fristname and lastname',
         create: {
           firstname: '',
           lastname: '',
@@ -129,7 +147,7 @@ class UserTest < ActiveSupport::TestCase
         },
       },
       {
-        name: '#8 - update with avatar check',
+        name: '#9 - update with avatar check',
         create: {
           firstname: 'Bob',
           lastname: 'Smith',
@@ -158,7 +176,7 @@ class UserTest < ActiveSupport::TestCase
         }
       },
       {
-        name: '#9 - update create with avatar check',
+        name: '#10 - update create with avatar check',
         create: {
           firstname: 'Bob',
           lastname: 'Smith',
@@ -188,7 +206,7 @@ class UserTest < ActiveSupport::TestCase
         }
       },
       {
-        name: '#10 - update create with login/email check',
+        name: '#11 - update create with login/email check',
         create: {
           firstname: '',
           lastname: '',
@@ -215,7 +233,7 @@ class UserTest < ActiveSupport::TestCase
         }
       },
       {
-        name: '#11 - update create with login/email check',
+        name: '#12 - update create with login/email check',
         create: {
           firstname: 'Firstname',
           lastname: 'Lastname',
@@ -245,12 +263,10 @@ class UserTest < ActiveSupport::TestCase
     tests.each do |test|
 
       # check if user exists
-      user = User.where(login: test[:create][:login]).first
-      if user
-        user.destroy!
-      end
+      user = User.find_by(login: test[:create][:login])
+      user&.destroy!
 
-      user = User.create( test[:create] )
+      user = User.create!(test[:create])
 
       test[:create_verify].each do |key, value|
         next if key == :image_md5
@@ -259,38 +275,128 @@ class UserTest < ActiveSupport::TestCase
           if value.nil?
             assert_nil(result, "create check #{key} in (#{test[:name]})")
           else
-            assert_equal(value, result, "create check #{key} in (#{test[:name]})")
+            assert_equal(result, value, "create check #{key} in (#{test[:name]})")
           end
         else
-          assert_equal(value, user[key], "create check #{key} in (#{test[:name]})")
+          assert_equal(user[key], value, "create check #{key} in (#{test[:name]})")
         end
       end
       if test[:create_verify][:image_md5]
         file = Avatar.get_by_hash(user.image)
         file_md5 = Digest::MD5.hexdigest(file.content)
-        assert_equal(test[:create_verify][:image_md5], file_md5, "create avatar md5 check in (#{test[:name]})")
+        assert_equal(file_md5, test[:create_verify][:image_md5], "create avatar md5 check in (#{test[:name]})")
       end
       if test[:update]
-        user.update!( test[:update] )
+        user.update!(test[:update])
 
         test[:update_verify].each do |key, value|
           next if key == :image_md5
           if user.respond_to?(key)
-            assert_equal(value, user.send(key), "update check #{key} in (#{test[:name]})")
+            assert_equal(user.send(key), value, "update check #{key} in (#{test[:name]})")
           else
-            assert_equal(value, user[key], "update check #{key} in (#{test[:name]})")
+            assert_equal(user[key], value, "update check #{key} in (#{test[:name]})")
           end
         end
 
         if test[:update_verify][:image_md5]
-          file = Avatar.get_by_hash( user.image )
-          file_md5 = Digest::MD5.hexdigest( file.content )
-          assert_equal( test[:update_verify][:image_md5], file_md5, "update avatar md5 check in (#{test[:name]})")
+          file = Avatar.get_by_hash(user.image)
+          file_md5 = Digest::MD5.hexdigest(file.content)
+          assert_equal(file_md5, test[:update_verify][:image_md5], "update avatar md5 check in (#{test[:name]})")
         end
       end
 
       user.destroy!
     end
+  end
+
+  test 'strange spaces' do
+    name = "#{Time.zone.now.to_i}-#{rand(999_999_999_999)}"
+    email = "customer_email#{name}@example.com"
+    customer = User.create!(
+      firstname: 'Role',
+      lastname: "Customer#{name}",
+      email: " #{email} ",
+      password: 'customerpw',
+      active: true,
+      roles: Role.where(name: %w[Customer]),
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert(customer)
+    assert_equal(email, customer.email)
+    customer.destroy!
+
+    name = "#{Time.zone.now.to_i}-#{rand(999_999_999_999)}"
+    email = "customer_email#{name}@example.com"
+    customer = User.create!(
+      firstname: "\u{00a0}\u{00a0}Role",
+      lastname: "Customer#{name} \u{00a0}",
+      email: "\u{00a0}#{email}\u{00a0}",
+      password: 'customerpw',
+      active: true,
+      roles: Role.where(name: %w[Customer]),
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert(customer)
+    assert_equal('Role', customer.firstname)
+    assert_equal("Customer#{name}", customer.lastname)
+    assert_equal(email, customer.email)
+    customer.destroy!
+
+    name = "#{Time.zone.now.to_i}-#{rand(999_999_999_999)}"
+    email = "customer_email#{name}@example.com"
+    customer = User.create!(
+      firstname: "\u{200B}\u{200B}Role",
+      lastname: "Customer#{name} \u{200B}",
+      email: "\u{200B}#{email}\u{200B}",
+      password: 'customerpw',
+      active: true,
+      roles: Role.where(name: %w[Customer]),
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert(customer)
+    assert_equal('Role', customer.firstname)
+    assert_equal("Customer#{name}", customer.lastname)
+    assert_equal(email, customer.email)
+    customer.destroy!
+
+    name = "#{Time.zone.now.to_i}-#{rand(999_999_999_999)}"
+    email = "customer_email#{name}@example.com"
+    customer = User.create!(
+      firstname: "\u{200B}\u{200B}Role\u{00a0}",
+      lastname: "\u{00a0}\u{00a0}Customer#{name} \u{200B}",
+      email: "\u{200B}#{email}\u{200B}",
+      password: 'customerpw',
+      active: true,
+      roles: Role.where(name: %w[Customer]),
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert(customer)
+    assert_equal('Role', customer.firstname)
+    assert_equal("Customer#{name}", customer.lastname)
+    assert_equal(email, customer.email)
+    customer.destroy!
+
+    name = "#{Time.zone.now.to_i}-#{rand(999_999_999_999)}"
+    email = "customer_email#{name}@example.com"
+    customer = User.create!(
+      firstname: "\u{200a}\u{200b}\u{202F}\u{205F}Role\u{2007}\u{2008}",
+      lastname: "\u{00a0}\u{00a0}Customer#{name}\u{3000}\u{FEFF}\u{2000}",
+      email: "\u{200B}#{email}\u{200B}\u{2007}\u{2008}",
+      password: 'customerpw',
+      active: true,
+      roles: Role.where(name: %w[Customer]),
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert(customer)
+    assert_equal('Role', customer.firstname)
+    assert_equal("Customer#{name}", customer.lastname)
+    assert_equal(email, customer.email)
+    customer.destroy!
   end
 
   test 'without email - but login eq email' do
@@ -305,7 +411,7 @@ class UserTest < ActiveSupport::TestCase
       #email: "",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -343,7 +449,7 @@ class UserTest < ActiveSupport::TestCase
       #email: "",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -379,7 +485,7 @@ class UserTest < ActiveSupport::TestCase
       email: email1,
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -395,7 +501,7 @@ class UserTest < ActiveSupport::TestCase
         email: email1,
         password: 'adminpw',
         active: true,
-        roles: Role.where(name: %w(Admin Agent)),
+        roles: Role.where(name: %w[Admin Agent]),
         updated_by_id: 1,
         created_by_id: 1,
       )
@@ -408,7 +514,7 @@ class UserTest < ActiveSupport::TestCase
       email: email2,
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -437,7 +543,7 @@ class UserTest < ActiveSupport::TestCase
       email: email1,
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -452,7 +558,7 @@ class UserTest < ActiveSupport::TestCase
       email: email1,
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -472,7 +578,7 @@ class UserTest < ActiveSupport::TestCase
       email: "admin-role#{name}@example.com",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -491,6 +597,7 @@ class UserTest < ActiveSupport::TestCase
 
     roles = Role.where(name: 'Agent')
     customer1.roles = roles
+
     customer1.save!
 
     assert_equal(customer1.role_ids.count, 1)
@@ -531,6 +638,38 @@ class UserTest < ActiveSupport::TestCase
 
     assert_equal(customer2.role_ids.sort, Role.signup_role_ids)
     customer2.destroy!
+
+    customer3 = User.create_or_update(
+      login: "user-ensure-role2-#{name}@example.com",
+      firstname: 'Role',
+      lastname: "Customer#{name}",
+      email: "user-ensure-role2-#{name}@example.com",
+      password: 'customerpw',
+      roles: roles,
+      active: true,
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+
+    assert_raises(RuntimeError) do
+      customer3.roles = Role.where(name: %w[Customer Admin])
+    end
+    assert_raises(RuntimeError) do
+      customer3.roles = Role.where(name: %w[Customer Agent])
+    end
+    customer3.roles = Role.where(name: %w[Admin Agent])
+    customer3.roles.each do |role|
+      assert_not_equal(role.name, 'Customer')
+    end
+    customer3.roles = Role.where(name: 'Admin')
+    customer3.roles.each do |role|
+      assert_not_equal(role.name, 'Customer')
+    end
+    customer3.roles = Role.where(name: 'Agent')
+    customer3.roles.each do |role|
+      assert_not_equal(role.name, 'Customer')
+    end
+    customer3.destroy!
 
     admin.destroy!
   end
@@ -619,7 +758,7 @@ class UserTest < ActiveSupport::TestCase
       name: 'Test3',
       note: 'People who create Tickets ask for help.',
       preferences: {
-        not: %w(Test1 Test2),
+        not: %w[Test1 Test2],
       },
       updated_by_id: 1,
       created_by_id: 1
@@ -731,7 +870,7 @@ class UserTest < ActiveSupport::TestCase
       email: "admin-role#{name}@example.com",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -760,7 +899,7 @@ class UserTest < ActiveSupport::TestCase
       created_by_id: 1,
     )
     users = User.with_permissions('not_existing')
-    assert(users.empty?)
+    assert(users.blank?)
 
     users = User.with_permissions('admin')
     assert_equal(admin_count + 1, users.count)
@@ -791,15 +930,9 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test 'min admin permission check' do
-    # workaround:
-    # - We need to get rid of all admin users but can't delete them
-    #   because we have foreign keys pointing at them since the tests are not isolated yet :(
-    # - We can't just remove the roles since then our check would take place
-    # So we need to merge them with the User Nr 1 and destroy them afterwards
-    User.with_permissions('admin').each do |user|
-      Models.merge('User', 1, user.id)
-      user.destroy!
-    end
+
+    # delete inital admin
+    User.find_by(login: 'admin@example.com').destroy
 
     # store current admin count
     admin_count_inital = User.with_permissions('admin').count
@@ -814,7 +947,7 @@ class UserTest < ActiveSupport::TestCase
       email: "admin-role#{random}@example.com",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -827,7 +960,7 @@ class UserTest < ActiveSupport::TestCase
       email: "admin-role#{random}@example.com",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -840,7 +973,7 @@ class UserTest < ActiveSupport::TestCase
       email: "admin-role#{random}@example.com",
       password: 'adminpw',
       active: true,
-      roles: Role.where(name: %w(Admin Agent)),
+      roles: Role.where(name: %w[Admin Agent]),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -848,22 +981,87 @@ class UserTest < ActiveSupport::TestCase
     admin_count_inital = User.with_permissions('admin').count
     assert_equal(3, admin_count_inital)
 
-    admin1.update!(roles: Role.where(name: %w(Agent)))
+    admin1.update!(roles: Role.where(name: %w[Agent]))
 
     admin_count_inital = User.with_permissions('admin').count
     assert_equal(2, admin_count_inital)
 
-    admin2.update!(roles: Role.where(name: %w(Agent)))
+    admin2.update!(roles: Role.where(name: %w[Agent]))
 
     admin_count_inital = User.with_permissions('admin').count
     assert_equal(1, admin_count_inital)
 
     assert_raises(Exceptions::UnprocessableEntity) do
-      admin3.update!(roles: Role.where(name: %w(Agent)))
+      admin3.update!(roles: Role.where(name: %w[Agent]))
     end
 
     admin_count_inital = User.with_permissions('admin').count
     assert_equal(1, admin_count_inital)
+
+    assert_raises(Exceptions::UnprocessableEntity) do
+      admin3.active = false
+      admin3.save!
+    end
+
+    assert_equal(1, User.with_permissions('admin').count)
+    admin_role = Role.find_by(name: 'Admin')
+    assert_raises(Exceptions::UnprocessableEntity) do
+      admin_role.active = false
+      admin_role.save!
+    end
+
+    assert_raises(Exceptions::UnprocessableEntity) do
+      admin_role.permission_revoke('admin')
+    end
+
+    assert_equal(1, User.with_permissions('admin').count)
+
+  end
+
+  test 'only valid agent in group permission check' do
+    name = rand(999_999_999)
+    group = Group.create!(
+      name: "ValidAgentGroupPermission-#{name}",
+      active: true,
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    roles  = Role.where(name: 'Agent')
+    agent1 = User.create_or_update(
+      login: "agent-default-vaild_agent_group_permission-1#{name}@example.com",
+      firstname: 'vaild_agent_group_permission-1',
+      lastname: "Agent#{name}",
+      email: "agent-default-vaild_agent_group_permission-1#{name}@example.com",
+      password: 'agentpw',
+      active: true,
+      roles: roles,
+      groups: [group],
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    agent2 = User.create_or_update(
+      login: "agent-default-vaild_agent_group_permission-2#{name}@example.com",
+      firstname: 'vaild_agent_group_permission-2',
+      lastname: "Agent#{name}",
+      email: "agent-default-vaild_agent_group_permission-2#{name}@example.com",
+      password: 'agentpw',
+      active: true,
+      roles: roles,
+      groups: [group],
+      updated_by_id: 1,
+      created_by_id: 1,
+    )
+    assert_equal(2, User.group_access(group.id, 'full').count)
+    agent2.active = false
+    agent2.save!
+    assert_equal(1, User.group_access(group.id, 'full').count)
+    agent2.active = true
+    agent2.save!
+    assert_equal(2, User.group_access(group.id, 'full').count)
+    roles = Role.where(name: 'Customer')
+    agent2.roles = roles
+    agent2.save!
+    assert_equal(1, User.group_access(group.id, 'full').count)
   end
 
 end

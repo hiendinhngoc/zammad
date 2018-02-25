@@ -151,6 +151,12 @@ class Ldap
       params[:encryption] = @encryption
     end
 
+    # special workaround for IBM bluepages
+    # see issue #1422 for more details
+    if @host == 'bluepages.ibm.com'
+      params[:force_no_page] = true
+    end
+
     params
   end
 
@@ -194,11 +200,10 @@ class Ldap
       method: :simple_tls,
     }
 
-    if !@config[:ssl_verify]
-      @encryption[:tls_options] = {
-        verify_mode: OpenSSL::SSL::VERIFY_NONE
-      }
-    end
+    return if @config[:ssl_verify]
+    @encryption[:tls_options] = {
+      verify_mode: OpenSSL::SSL::VERIFY_NONE
+    }
   end
 
   def handle_bind_crendentials

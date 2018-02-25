@@ -1,5 +1,3 @@
-# encoding: utf-8
-
 class Observer::Chat::Leave::BackgroundJob
   def initialize(chat_session_id, client_id, session)
     @chat_session_id = chat_session_id
@@ -21,7 +19,7 @@ class Observer::Chat::Leave::BackgroundJob
       realname = User.lookup(id: @session['id']).fullname
     end
 
-    # notifiy participients
+    # notify participants
     message = {
       event: 'chat_session_left',
       data: {

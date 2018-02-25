@@ -35,16 +35,15 @@ returns
     articles = Ticket::Article.where(ticket_id: id)
     attributes['article'] = []
     articles.each do |article|
-      article_attributes = article.attributes
-
-      # remove note needed attributes
-      ignore = %w(message_id_md5)
-      ignore.each do |attribute|
-        article_attributes.delete(attribute)
-      end
 
       # lookup attributes of ref. objects (normally name and note)
       article_attributes = article.search_index_attribute_lookup
+
+      # remove note needed attributes
+      ignore = %w[message_id_md5 ticket]
+      ignore.each do |attribute|
+        article_attributes.delete(attribute)
+      end
 
       # index raw text body
       if article_attributes['content_type'] && article_attributes['content_type'] == 'text/html' && article_attributes['body']
@@ -52,10 +51,8 @@ returns
       end
 
       # lookup attachments
+      article_attributes['attachment'] = []
       article.attachments.each do |attachment|
-        if !article_attributes['attachment']
-          article_attributes['attachment'] = []
-        end
 
         # check file size
         next if !attachment.content
@@ -71,7 +68,7 @@ returns
 
         data = {
           '_name'    => attachment.filename,
-          '_content' => Base64.encode64(attachment.content)
+          '_content' => Base64.encode64(attachment.content).delete("\n")
         }
         article_attributes['attachment'].push data
       end

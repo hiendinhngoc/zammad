@@ -1,4 +1,4 @@
-# encoding: utf-8
+
 require 'test_helper'
 
 class ObjectCacheTest < ActiveSupport::TestCase
@@ -9,7 +9,7 @@ class ObjectCacheTest < ActiveSupport::TestCase
       created_by_id: 1,
     )
 
-    roles  = Role.where( name: %w(Agent Admin) )
+    roles  = Role.where( name: %w[Agent Admin] )
     groups = Group.all
     user1 = User.create_or_update(
       login: 'object_cache1@example.org',
@@ -29,13 +29,14 @@ class ObjectCacheTest < ActiveSupport::TestCase
 
     user1.organization_id = nil
     user1.save
+    org.reload
 
     assets = org.assets({})
     assert_equal(org.member_ids.sort, assets[:Organization][org.id]['member_ids'].sort)
   end
 
   test 'user cache' do
-    roles  = Role.where(name: %w(Agent Admin))
+    roles  = Role.where(name: %w[Agent Admin])
     groups = Group.all.order(:id)
 
     # be sure that minimum one admin is available

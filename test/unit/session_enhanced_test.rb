@@ -1,8 +1,8 @@
-# encoding: utf-8
+
 require 'test_helper'
 
 class SessionEnhancedTest < ActiveSupport::TestCase
-  test 'a check clients and send messages' do
+  test 'check clients and send messages' do
 
     # create users
     roles  = Role.where(name: ['Agent'])
@@ -172,7 +172,8 @@ class SessionEnhancedTest < ActiveSupport::TestCase
     travel_back
   end
 
-  test 'b check client and backends' do
+  test 'check client and backends' do
+
     # create users
     roles        = Role.where(name: ['Agent'])
     groups       = Group.all
@@ -330,13 +331,13 @@ class SessionEnhancedTest < ActiveSupport::TestCase
       #puts "rc: "
       next if !message['data']
 
-      message['data'].each do |key, _value|
+      message['data'].each_key do |key|
         #puts "rc: #{key}"
         collections_result[key] = true
       end
     end
     #puts "c: #{collections_result.inspect}"
-    collections_orig.each do |key, _value|
+    collections_orig.each_key do |key|
       if collections_orig[key].nil?
         assert_nil(collections_result[key], "collection message for #{key} #{type}-check (client_id #{client_id})")
       else

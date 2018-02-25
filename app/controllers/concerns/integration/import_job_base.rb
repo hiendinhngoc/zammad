@@ -9,7 +9,7 @@ module Integration::ImportJobBase
   end
 
   def job_try_create
-    ImportJob.dry_run(name: import_backend_namespace, payload: payload_dry_run)
+    ImportJob.dry_run(name: backend, payload: payload_dry_run)
     render json: {
       result: 'ok',
     }
@@ -20,8 +20,8 @@ module Integration::ImportJobBase
   end
 
   def job_start_create
-    if !ImportJob.exists?(name: import_backend_namespace, finished_at: nil)
-      job = ImportJob.create(name: import_backend_namespace, payload: payload_import)
+    if !ImportJob.exists?(name: backend, finished_at: nil)
+      job = ImportJob.create(name: backend)
       job.delay.start
     end
     render json: {
@@ -30,14 +30,14 @@ module Integration::ImportJobBase
   end
 
   def payload_dry_run
-    params
-  end
-
-  def payload_import
-    import_setting
+    clean_payload(params.permit!.to_h)
   end
 
   private
+
+  def clean_payload(payload)
+    payload.except(:wizardData, :action, :controller)
+  end
 
   def answer_with
     result = yield
@@ -50,31 +50,19 @@ module Integration::ImportJobBase
     }
   end
 
-  def import_setting
-    Setting.get(import_setting_name)
-  end
-
-  def import_setting_name
-    "#{import_backend_name.downcase}_config"
-  end
-
-  def import_backend_namespace
-    "Import::#{import_backend_name}"
-  end
-
-  def import_backend_name
-    self.class.name.split('::').last.sub('Controller', '')
+  def backend
+    "Import::#{controller_name.classify}"
   end
 
   def job_index(dry_run:, take_finished: true)
     job = ImportJob.find_by(
-      name:        import_backend_namespace,
+      name:        backend,
       dry_run:     dry_run,
       finished_at: nil
     )
     if !job && take_finished
       job = ImportJob.where(
-        name:    import_backend_namespace,
+        name:    backend,
         dry_run: dry_run
       ).order(created_at: :desc).limit(1).first
     end

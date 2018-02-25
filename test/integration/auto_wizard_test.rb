@@ -1,4 +1,4 @@
-# encoding: utf-8
+
 require 'test_helper'
 
 class AutoWizardTest < ActiveSupport::TestCase
@@ -46,7 +46,7 @@ class AutoWizardTest < ActiveSupport::TestCase
     assert_equal(false, AutoWizard.enabled?)
 
     # check first user roles
-    auto_wizard_data[:Users][0][:roles] = %w(Agent Admin)
+    auto_wizard_data[:Users][0][:roles] = %w[Agent Admin]
 
     auto_wizard_data[:Users].each do |local_user|
       user = User.find_by(login: local_user[:login])
@@ -126,6 +126,16 @@ class AutoWizardTest < ActiveSupport::TestCase
           value: 'Zammad UnitTest02 System'
         },
       ],
+      Permissions: [
+        {
+          name: 'admin.session',
+          active: false,
+        },
+        {
+          name: 'admin.session.new',
+          active: true,
+        },
+      ],
       Channels: [
         {
           id: 1,
@@ -193,11 +203,9 @@ class AutoWizardTest < ActiveSupport::TestCase
     auto_wizard_data[:Groups].each do |local_group|
       group = Group.find_by(name: local_group[:name])
       assert_equal(local_group[:name], group.name)
-      if local_group[:users]
-        local_group[:users].each do |local_user_login|
-          local_user = User.find_by(login: local_user_login)
-          assert(group.user_ids.include?(local_user.id))
-        end
+      local_group[:users]&.each do |local_user_login|
+        local_user = User.find_by(login: local_user_login)
+        assert(group.user_ids.include?(local_user.id))
       end
       if local_group[:signature]
         signature = group.signature
@@ -221,17 +229,22 @@ class AutoWizardTest < ActiveSupport::TestCase
       setting_value = Setting.get(local_setting[:name])
       assert_equal(local_setting[:value], setting_value)
     end
+    auto_wizard_data[:Permissions].each do |local_permission|
+      permission = Permission.find_by(name: local_permission[:name])
+      assert_equal(local_permission[:name], permission.name)
+      assert_equal(local_permission[:active], permission.active)
+    end
   end
 
   def auto_wizard_file_write(data)
-    location = "#{Rails.root}/auto_wizard.json"
+    location = Rails.root.join('auto_wizard.json')
     file = File.new(location, 'wb')
     file.write(data.to_json)
     file.close
   end
 
   def auto_wizard_file_exists?
-    location = "#{Rails.root}/auto_wizard.json"
+    location = Rails.root.join('auto_wizard.json')
     return false if File.exist?(location)
     true
   end

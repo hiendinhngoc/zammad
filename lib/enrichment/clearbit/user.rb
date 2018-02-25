@@ -12,7 +12,6 @@ module Enrichment
         return false if !@config
         return false if @local_user.email.blank?
 
-        # TODO
         UserInfo.current_user_id = 1
 
         return false if !mapping?
@@ -120,14 +119,14 @@ module Enrichment
 
       def fetch
         if !Rails.env.production?
-          filename = "#{Rails.root}/test/fixtures/clearbit/#{@local_user.email}.json"
+          filename = Rails.root.join('test', 'fixtures', 'clearbit', "#{@local_user.email}.json")
           if File.exist?(filename)
             data = IO.binread(filename)
             return JSON.parse(data) if data
           end
         end
 
-        return if @config['api_key'].empty?
+        return if @config['api_key'].blank?
 
         record = {
           direction: 'out',

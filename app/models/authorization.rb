@@ -58,7 +58,7 @@ class Authorization < ApplicationModel
     end
 
     # save/update avatar
-    if hash['info']['image']
+    if hash['info'].present? && hash['info']['image'].present?
       avatar = Avatar.add(
         object: 'User',
         o_id: user.id,
@@ -90,7 +90,7 @@ class Authorization < ApplicationModel
 
   def delete_user_cache
     return if !user
-    user.touch
+    user.touch # rubocop:disable Rails/SkipsModelValidations
   end
 
 end

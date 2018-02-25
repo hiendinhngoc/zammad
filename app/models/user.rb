@@ -38,14 +38,14 @@ class User < ApplicationModel
   load 'user/search_index.rb'
   include User::SearchIndex
 
-  before_validation :check_name, :check_email, :check_login, :ensure_uniq_email, :ensure_password, :ensure_roles, :ensure_identifier
-  before_create   :check_preferences_default, :validate_roles, :validate_ooo, :domain_based_assignment, :set_locale
-  before_update   :check_preferences_default, :validate_roles, :validate_ooo, :reset_login_failed
+  before_validation :check_name, :check_email, :check_login, :check_mail_delivery_failed, :ensure_uniq_email, :ensure_password, :ensure_roles, :ensure_identifier
+  before_create   :check_preferences_default, :validate_ooo, :domain_based_assignment, :set_locale
+  before_update   :check_preferences_default, :validate_ooo, :reset_login_failed, :validate_agent_limit_by_attributes, :last_admin_check_by_attribute
   after_create    :avatar_for_email_check
   after_update    :avatar_for_email_check
   after_destroy   :avatar_destroy, :user_device_destroy
 
-  has_and_belongs_to_many :roles,           after_add: [:cache_update, :check_notifications], after_remove: :cache_update, before_add: :validate_agent_limit, before_remove: :last_admin_check, class_name: 'Role'
+  has_and_belongs_to_many :roles,           after_add: %i[cache_update check_notifications], after_remove: :cache_update, before_add: %i[validate_agent_limit_by_role validate_roles], before_remove: :last_admin_check_by_role, class_name: 'Role'
   has_and_belongs_to_many :organizations,   after_add: :cache_update, after_remove: :cache_update, class_name: 'Organization'
   #has_many                :permissions,     class_name: 'Permission', through: :roles, class_name: 'Role'
   has_many                :tokens,          after_add: :cache_update, after_remove: :cache_update
@@ -72,8 +72,7 @@ class User < ApplicationModel
                                   :image,
                                   :image_source,
                                   :source,
-                                  :login_failed,
-                                  :preferences
+                                  :login_failed
 
   def ignore_search_indexing?(_action)
     # ignore internal user
@@ -96,16 +95,16 @@ returns
 
   def fullname
     name = ''
-    if firstname && !firstname.empty?
-      name = name + firstname
+    if firstname.present?
+      name = firstname
     end
-    if lastname && !lastname.empty?
+    if lastname.present?
       if name != ''
         name += ' '
       end
       name += lastname
     end
-    if name == '' && email
+    if name.blank? && email.present?
       name = email
     end
     name
@@ -283,7 +282,7 @@ returns
 
     sleep 1
     user.login_failed += 1
-    user.save
+    user.save!
     nil
   end
 
@@ -368,12 +367,9 @@ returns
 
     role_ids = Role.signup_role_ids
     url = ''
-    if hash['info']['urls']
-      hash['info']['urls'].each do |_name, local_url|
-        next if !local_url
-        next if local_url.empty?
-        url = local_url
-      end
+    hash['info']['urls']&.each_value do |local_url|
+      next if local_url.blank?
+      url = local_url
     end
     create(
       login: hash['info']['nickname'] || hash['uid'],
@@ -408,7 +404,7 @@ returns
 
   def permissions
     list = {}
-    Object.const_get('Permission').select('permissions.name, permissions.preferences').joins(:roles).where('roles.id IN (?) AND permissions.active = ?', role_ids, true).pluck(:name, :preferences).each do |permission|
+    ::Permission.select('permissions.name, permissions.preferences').joins(:roles).where('roles.id IN (?) AND permissions.active = ?', role_ids, true).pluck(:name, :preferences).each do |permission|
       next if permission[1]['selectable'] == false
       list[permission[0]] = true
     end
@@ -440,29 +436,19 @@ returns
       keys = [key]
     end
     keys.each do |local_key|
-      cache_key = "User::permissions?:local_key:::#{id}"
-      if Rails.env.production?
-        cache = Cache.get(cache_key)
-        return cache if cache
-      end
       list = []
-      if local_key =~ /\.\*$/
+      if local_key.match?(/\.\*$/)
         local_key.sub!('.*', '.%')
-        permissions = Object.const_get('Permission').with_parents(local_key)
-        list = Object.const_get('Permission').select('preferences').joins(:roles).where('roles.id IN (?) AND roles.active = ? AND (permissions.name IN (?) OR permissions.name LIKE ?) AND permissions.active = ?', role_ids, true, permissions, local_key, true).pluck(:preferences)
+        permissions = ::Permission.with_parents(local_key)
+        list = ::Permission.select('preferences').joins(:roles).where('roles.id IN (?) AND roles.active = ? AND (permissions.name IN (?) OR permissions.name LIKE ?) AND permissions.active = ?', role_ids, true, permissions, local_key, true).pluck(:preferences)
       else
-        permission = Object.const_get('Permission').lookup(name: local_key)
-        break if permission && permission.active == false
-        permissions = Object.const_get('Permission').with_parents(local_key)
-        list = Object.const_get('Permission').select('preferences').joins(:roles).where('roles.id IN (?) AND roles.active = ? AND permissions.name IN (?) AND permissions.active = ?', role_ids, true, permissions, true).pluck(:preferences)
+        permission = ::Permission.lookup(name: local_key)
+        break if permission&.active == false
+        permissions = ::Permission.with_parents(local_key)
+        list = ::Permission.select('preferences').joins(:roles).where('roles.id IN (?) AND roles.active = ? AND permissions.name IN (?) AND permissions.active = ?', role_ids, true, permissions, true).pluck(:preferences)
       end
-      list.each do |preferences|
-        next if preferences[:selectable] == false
-        Cache.write(key, true, expires_in: 10.seconds)
-        return true
-      end
+      return true if list.present?
     end
-    Cache.write(key, false, expires_in: 10.seconds)
     false
   end
 
@@ -482,21 +468,21 @@ returns
   def permissions_with_child_ids
     where = ''
     where_bind = [true]
-    permissions.each do |permission_name, _value|
+    permissions.each_key do |permission_name|
       where += ' OR ' if where != ''
       where += 'permissions.name = ? OR permissions.name LIKE ?'
       where_bind.push permission_name
       where_bind.push "#{permission_name}.%"
     end
     return [] if where == ''
-    Object.const_get('Permission').where("permissions.active = ? AND (#{where})", *where_bind).pluck(:id)
+    ::Permission.where("permissions.active = ? AND (#{where})", *where_bind).pluck(:id)
   end
 
 =begin
 
 get all users with permission
 
-  users = User.with_permissions('admin.session')
+  users = User.with_permissions('ticket.agent')
 
 get all users with permission "admin.session" or "ticket.agent"
 
@@ -516,18 +502,18 @@ returns
     permission_ids = []
     keys.each do |key|
       role_ids = []
-      Object.const_get('Permission').with_parents(key).each do |local_key|
-        permission = Object.const_get('Permission').lookup(name: local_key)
+      ::Permission.with_parents(key).each do |local_key|
+        permission = ::Permission.lookup(name: local_key)
         next if !permission
         permission_ids.push permission.id
       end
-      next if permission_ids.empty?
+      next if permission_ids.blank?
       Role.joins(:roles_permissions).joins(:permissions).where('permissions_roles.permission_id IN (?) AND roles.active = ? AND permissions.active = ?', permission_ids, true, true).distinct().pluck(:id).each do |role_id|
         role_ids.push role_id
       end
       total_role_ids.push role_ids
     end
-    return [] if total_role_ids.empty?
+    return [] if total_role_ids.blank?
     condition = ''
     total_role_ids.each do |_role_ids|
       if condition != ''
@@ -758,7 +744,7 @@ returns
 =end
 
   def self.update_default_preferences_by_permission(permission_name, force = false)
-    permission = Object.const_get('Permission').lookup(name: permission_name)
+    permission = ::Permission.lookup(name: permission_name)
     return if !permission
     default = Rails.configuration.preferences_default_by_permission
     return false if !default
@@ -802,7 +788,7 @@ returns
     true
   end
 
-  def check_notifications(o, shouldSave = true)
+  def check_notifications(o, should_save = true)
     default = Rails.configuration.preferences_default_by_permission
     return if !default
     default.deep_stringify_keys!
@@ -818,7 +804,7 @@ returns
 
     return true if !has_changed
 
-    if id && shouldSave
+    if id && should_save
       save!
       return true
     end
@@ -857,42 +843,55 @@ returns
   end
 
   def check_name
-    return true if !firstname.empty? && !lastname.empty?
+    if firstname.present?
+      firstname.strip!
+    end
+    if lastname.present?
+      lastname.strip!
+    end
 
-    if !firstname.empty? && lastname.empty?
+    return true if firstname.present? && lastname.present?
+
+    if (firstname.blank? && lastname.present?) || (firstname.present? && lastname.blank?)
 
       # "Lastname, Firstname"
-      scan = firstname.scan(/, /)
-      if scan[0]
-        name = firstname.split(', ', 2)
-        if !name[0].nil?
-          self.lastname  = name[0]
+      used_name = if firstname.blank?
+                    lastname
+                  else
+                    firstname
+                  end
+      name = used_name.split(', ', 2)
+      if name.count == 2
+        if name[0].present?
+          self.lastname = name[0]
         end
-        if !name[1].nil?
+        if name[1].present?
           self.firstname = name[1]
         end
         return true
       end
 
       # "Firstname Lastname"
-      name = firstname.split(' ', 2)
-      if !name[0].nil?
-        self.firstname = name[0]
+      name = used_name.split(' ', 2)
+      if name.count == 2
+        if name[0].present?
+          self.firstname = name[0]
+        end
+        if name[1].present?
+          self.lastname = name[1]
+        end
+        return true
       end
-      if !name[1].nil?
-        self.lastname = name[1]
-      end
-      return true
 
     # -no name- "firstname.lastname@example.com"
-    elsif firstname.empty? && lastname.empty? && !email.empty?
+    elsif firstname.blank? && lastname.blank? && email.present?
       scan = email.scan(/^(.+?)\.(.+?)\@.+?$/)
       if scan[0]
-        if !scan[0][0].nil?
+        if scan[0][0].present?
           self.firstname = scan[0][0].capitalize
         end
-        if !scan[0][1].nil?
-          self.lastname  = scan[0][1].capitalize
+        if scan[0][1].present?
+          self.lastname = scan[0][1].capitalize
         end
       end
     end
@@ -905,7 +904,7 @@ returns
     self.email = email.downcase.strip
     return true if id == 1
     raise Exceptions::UnprocessableEntity, 'Invalid email' if email !~ /@/
-    raise Exceptions::UnprocessableEntity, 'Invalid email' if email =~ /\s/
+    raise Exceptions::UnprocessableEntity, 'Invalid email' if email.match?(/\s/)
     true
   end
 
@@ -933,12 +932,18 @@ returns
     check      = true
     while check
       exists = User.find_by(login: login)
-      if exists && exists.id != id
+      if exists && exists.id != id # rubocop:disable Style/SafeNavigation
         self.login = "#{login}#{rand(999)}"
       else
         check = false
       end
     end
+    true
+  end
+
+  def check_mail_delivery_failed
+    return true if !changes || !changes['email']
+    preferences.delete(:mail_delivery_failed)
     true
   end
 
@@ -963,17 +968,14 @@ returns
     raise Exceptions::UnprocessableEntity, 'Email address is already used for other user.'
   end
 
-  def validate_roles
-    return true if !role_ids
-    role_ids.each do |role_id|
-      role = Role.lookup(id: role_id)
-      raise "Unable to find role for id #{role_id}" if !role
-      next if !role.preferences[:not]
-      role.preferences[:not].each do |local_role_name|
-        local_role = Role.lookup(name: local_role_name)
-        next if !local_role
-        raise "Role #{role.name} conflicts with #{local_role.name}" if role_ids.include?(local_role.id)
-      end
+  def validate_roles(role)
+    return true if !role_ids # we need role_ids for checking in role_ids below, in this method
+    return true if role.preferences[:not].blank?
+    role.preferences[:not].each do |local_role_name|
+      local_role = Role.lookup(name: local_role_name)
+      next if !local_role
+      next if role_ids.exclude?(local_role.id)
+      raise "Role #{role.name} conflicts with #{local_role.name}"
     end
     true
   end
@@ -987,10 +989,10 @@ returns
     raise Exceptions::UnprocessableEntity, 'out of office no such replacement user' if !User.find_by(id: out_of_office_replacement_id)
     true
   end
+
 =begin
 
-checks if the current user is the last one
-with admin permissions.
+checks if the current user is the last one with admin permissions.
 
 Raises
 
@@ -998,28 +1000,61 @@ raise 'Minimum one user need to have admin permissions'
 
 =end
 
-  def last_admin_check(role)
-    return true if Setting.get('import_mode')
-
-    ticket_admin_role_ids = Role.joins(:permissions).where(permissions: { name: ['admin', 'admin.user'] }).pluck(:id)
-    count                 = User.joins(:roles).where(roles: { id: ticket_admin_role_ids }, users: { active: true }).count
-    if ticket_admin_role_ids.include?(role.id)
-      count -= 1
-    end
-
-    raise Exceptions::UnprocessableEntity, 'Minimum one user needs to have admin permissions.' if count < 1
+  def last_admin_check_by_attribute
+    return true if !will_save_change_to_attribute?('active')
+    return true if active != false
+    return true if !permissions?(['admin', 'admin.user'])
+    raise Exceptions::UnprocessableEntity, 'Minimum one user needs to have admin permissions.' if last_admin_check_admin_count < 1
     true
   end
 
-  def validate_agent_limit(role)
+  def last_admin_check_by_role(role)
+    return true if Setting.get('import_mode')
+    return true if !role.with_permission?(['admin', 'admin.user'])
+    raise Exceptions::UnprocessableEntity, 'Minimum one user needs to have admin permissions.' if last_admin_check_admin_count < 1
+    true
+  end
+
+  def last_admin_check_admin_count
+    admin_role_ids = Role.joins(:permissions).where(permissions: { name: ['admin', 'admin.user'], active: true }, roles: { active: true }).pluck(:id)
+    User.joins(:roles).where(roles: { id: admin_role_ids }, users: { active: true }).distinct().count - 1
+  end
+
+  def validate_agent_limit_by_attributes
     return true if !Setting.get('system_agent_limit')
+    return true if !will_save_change_to_attribute?('active')
+    return true if active != true
+    return true if !permissions?('ticket.agent')
+    ticket_agent_role_ids = Role.joins(:permissions).where(permissions: { name: 'ticket.agent', active: true }, roles: { active: true }).pluck(:id)
+    count                 = User.joins(:roles).where(roles: { id: ticket_agent_role_ids }, users: { active: true }).distinct().count + 1
+    raise Exceptions::UnprocessableEntity, 'Agent limit exceeded, please check your account settings.' if count > Setting.get('system_agent_limit')
+    true
+  end
 
-    ticket_agent_role_ids = Role.joins(:permissions).where(permissions: { name: 'ticket.agent' }).pluck(:id)
-    count                 = User.joins(:roles).where(roles: { id: ticket_agent_role_ids }, users: { active: true }).count
+  def validate_agent_limit_by_role(role)
+    return true if !Setting.get('system_agent_limit')
+    return true if active != true
+    return true if role.active != true
+    return true if !role.with_permission?('ticket.agent')
+    ticket_agent_role_ids = Role.joins(:permissions).where(permissions: { name: 'ticket.agent', active: true }, roles: { active: true }).pluck(:id)
+    count                 = User.joins(:roles).where(roles: { id: ticket_agent_role_ids }, users: { active: true }).distinct().count
+
+    # if new added role is a ticket.agent role
     if ticket_agent_role_ids.include?(role.id)
-      count += 1
-    end
 
+      # if user already has a ticket.agent role
+      hint = false
+      role_ids.each do |locale_role_id|
+        next if !ticket_agent_role_ids.include?(locale_role_id)
+        hint = true
+        break
+      end
+
+      # user has not already a ticket.agent role
+      if hint == false
+        count += 1
+      end
+    end
     raise Exceptions::UnprocessableEntity, 'Agent limit exceeded, please check your account settings.' if count > Setting.get('system_agent_limit')
     true
   end
@@ -1070,7 +1105,7 @@ raise 'Minimum one user need to have admin permissions'
     # update user link
     return true if !avatar
 
-    update_column(:image, avatar.store_hash)
+    update_column(:image, avatar.store_hash) # rubocop:disable Rails/SkipsModelValidations
     cache_delete
     true
   end

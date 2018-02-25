@@ -9,7 +9,7 @@ module ChecksHtmlSanitized
 
   def sanitized_html_attributes
     html_attributes = self.class.instance_variable_get(:@sanitized_html) || []
-    return true if html_attributes.empty?
+    return true if html_attributes.blank?
 
     html_attributes.each do |attribute|
       value = send(attribute)
@@ -31,7 +31,7 @@ module ChecksHtmlSanitized
 
 =begin
 
-serve methode to mark HTML attrbibutes that need to get sanitized
+serve method to mark HTML attributes that need to get sanitized
 
 class Model < ApplicationModel
   include Sanitized

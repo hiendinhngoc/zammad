@@ -1,4 +1,4 @@
-# encoding: utf-8
+
 # inital data set as extention to db/seeds.rb
 
 Trigger.destroy_all
@@ -20,5 +20,17 @@ email_address = EmailAddress.create_or_update(
 )
 Group.all.each do |group|
   group.email_address_id = email_address.id
-  group.save
+  group.save!
 end
+
+User.create_or_update(
+  login: 'admin@example.com',
+  firstname: 'Default',
+  lastname: 'Admin',
+  email: 'admin@example.com',
+  password: 'adminpw',
+  active: true,
+  roles: Role.where(name: %w[Admin]),
+  updated_by_id: 1,
+  created_by_id: 1,
+)

@@ -1,7 +1,9 @@
-# encoding: utf-8
+
 require 'integration_test_helper'
 
 class FacebookTest < ActiveSupport::TestCase
+  self.test_order = :sorted
+  self.use_transactional_tests = false
 
   # set system mode to done / to activate
   Setting.set('system_init_done', true)
