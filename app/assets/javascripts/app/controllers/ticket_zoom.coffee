@@ -483,6 +483,16 @@ class App.TicketZoom extends App.Controller
         links:        @links
       )
 
+      # check if autolock is needed
+      if @Config.get('ticket_auto_assignment') is true
+        if @ticket.owner_id is 1 && @permissionCheck('ticket.agent') && @ticket.editable('full')
+          ticket_auto_assignment_selector = @Config.get('ticket_auto_assignment_selector')
+          if App.Ticket.selector(@ticket, ticket_auto_assignment_selector['condition'])
+            assign = =>
+              @ticket.owner_id = App.Session.get('id')
+              @ticket.save()
+            @delay(assign, 800, "ticket-auto-assign-#{@ticket.id}")
+
     # render init content
     if elLocal
       @html elLocal
@@ -558,6 +568,10 @@ class App.TicketZoom extends App.Controller
     # update changes in ui
     currentStore = @currentStore()
     modelDiff = @formDiff(currentParams, currentStore)
+
+    # set followup state if needed
+    @setDefaultFollowUpState(modelDiff, currentStore)
+
     @markFormDiff(modelDiff)
     @taskUpdateAll(modelDiff)
 
@@ -582,6 +596,43 @@ class App.TicketZoom extends App.Controller
 
     currentStore
 
+  setDefaultFollowUpState: (modelDiff, currentStore) ->
+
+    # if the default state is set
+    # and the body get changed to empty
+    # then we want to reset the state
+    if @isDefaultFollowUpStateSet && !modelDiff.article.body
+      @$('.sidebar select[name=state_id]').val(currentStore.ticket.state_id).trigger('change')
+      @isDefaultFollowUpStateSet = false
+      return
+
+    # set default if body is filled
+    return if !modelDiff.article.body
+
+    # and state got not changed
+    return if modelDiff.ticket.state_id
+
+    # and we are in the customer interface
+    return if !@permissionCheck('ticket.customer')
+
+    # and the default is was not set before
+    return if @isDefaultFollowUpStateSet
+
+    # prevent multiple changes for the default follow up state
+    @isDefaultFollowUpStateSet = true
+
+    # get state
+    state = App.TicketState.findByAttribute('default_follow_up', true)
+
+    # change ui and trigger change
+    if state
+      @$('.sidebar[data-tab=ticket] select[name=state_id]').val(state.id).trigger('change')
+
+    true
+
+  resetDefaultFollowUpState: ->
+    @isDefaultFollowUpStateSet = false
+
   formCurrent: =>
     currentParams =
       ticket:  @formParam(@el.find('.edit'))
@@ -596,6 +647,10 @@ class App.TicketZoom extends App.Controller
 
     # remove not needed attributes
     delete currentParams.article.form_id
+
+    if @permissionCheck('ticket.customer')
+      currentParams.article.internal = ''
+
     currentParams
 
   formDiff: (currentParams, currentStore) ->
@@ -848,7 +903,7 @@ class App.TicketZoom extends App.Controller
       error: (settings, details) =>
         App.Event.trigger 'notify', {
           type:    'error'
-          msg:     App.i18n.translateContent(details.error_human || details.error || 'Unable to update!')
+          msg:     App.i18n.translateContent(details.error_human || details.error || settings.responseJSON.error || 'Unable to update!')
           timeout: 2000
         }
         @autosaveStart()
@@ -866,6 +921,9 @@ class App.TicketZoom extends App.Controller
 
     # reset task
     @taskReset()
+
+    # reset default follow up state
+    @resetDefaultFollowUpState()
 
     # reset/delete uploaded attachments
     App.Ajax.request(
