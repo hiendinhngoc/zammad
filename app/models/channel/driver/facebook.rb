@@ -1,7 +1,4 @@
 # Copyright (C) 2012-2015 Zammad Foundation, http://zammad-foundation.org/
-
-require 'facebook'
-
 class Channel::Driver::Facebook
 
 =begin
@@ -16,12 +13,12 @@ class Channel::Driver::Facebook
     @sync     = options['sync']
     @pages    = options['pages']
 
-    Rails.logger.debug 'facebook fetch started'
+    Rails.logger.debug { 'facebook fetch started' }
 
     fetch_feed
     disconnect
 
-    Rails.logger.debug 'facebook fetch completed'
+    Rails.logger.debug { 'facebook fetch completed' }
     notice = ''
     {
       result: 'ok',
@@ -33,12 +30,14 @@ class Channel::Driver::Facebook
     access_token = nil
     options['pages'].each do |page|
       next if page['id'].to_s != fb_object_id.to_s
+
       access_token = page['access_token']
     end
     if !access_token
       raise "No access_token found for fb_object_id: #{fb_object_id}"
     end
-    client = Facebook.new(access_token)
+
+    client = ::Facebook.new(access_token)
     client.from_article(article)
   end
 
@@ -57,6 +56,7 @@ class Channel::Driver::Facebook
     return true if !channel.preferences
     return true if !channel.preferences[:last_fetch]
     return false if channel.preferences[:last_fetch] > Time.zone.now - 5.minutes
+
     true
   end
 
@@ -96,7 +96,8 @@ returns
       page = get_page(page_to_sync_id)
       next if !page
       next if page_to_sync_params['group_id'].blank?
-      page_client = Facebook.new(page['access_token'])
+
+      page_client = ::Facebook.new(page['access_token'])
 
       posts = page_client.client.get_connection('me', 'feed', fields: 'id,from,to,message,created_time,permalink_url,comments{id,from,to,message,created_time}')
       posts.each do |post|
@@ -104,7 +105,7 @@ returns
         # ignore older messages
         if (@channel.created_at - 15.days) > Time.zone.parse(post['created_time']) || older_import >= older_import_max
           older_import += 1
-          Rails.logger.debug "post to old: #{post['id']}/#{post['created_time']}"
+          Rails.logger.debug { "post to old: #{post['id']}/#{post['created_time']}" }
           next
         end
 

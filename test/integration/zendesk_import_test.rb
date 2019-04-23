@@ -1,9 +1,7 @@
-
 require 'integration_test_helper'
 
 class ZendeskImportTest < ActiveSupport::TestCase
   self.test_order = :sorted
-  self.use_transactional_tests = false
 
   if !ENV['IMPORT_ZENDESK_ENDPOINT']
     raise "ERROR: Need IMPORT_ZENDESK_ENDPOINT - hint IMPORT_ZENDESK_ENDPOINT='https://example.zendesk.com/api/v2'"
@@ -29,7 +27,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
 
     # retrive statistic
     compare_statistic = {
-      Groups: {
+      Groups:        {
         skipped:     0,
         created:     2,
         updated:     0,
@@ -39,7 +37,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         sum:         2,
         total:       2
       },
-      Users: {
+      Users:         {
         skipped:     0,
         created:     141,
         updated:     0,
@@ -59,7 +57,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         sum:         1,
         total:       1
       },
-      Tickets: {
+      Tickets:       {
         skipped:     0,
         created:     142,
         updated:     1,
@@ -100,8 +98,8 @@ class ZendeskImportTest < ActiveSupport::TestCase
 
     checks = [
       {
-        id:   5,
-        data: {
+        id:     5,
+        data:   {
           firstname:     'Bob',
           lastname:      'Smith',
           login:         'bob.smith@znuny.com',
@@ -114,8 +112,8 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [group_support],
       },
       {
-        id:   6,
-        data: {
+        id:     6,
+        data:   {
           firstname:     'Hansimerkur',
           lastname:      '',
           login:         'hansimerkur@znuny.com',
@@ -127,8 +125,8 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [group_additional_group, group_support],
       },
       {
-        id:   7,
-        data: {
+        id:     7,
+        data:   {
           firstname: 'Bernd',
           lastname:  'Hofbecker',
           login:     'bernd.hofbecker@znuny.com',
@@ -139,8 +137,8 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [],
       },
       {
-        id:   8,
-        data: {
+        id:     8,
+        data:   {
           firstname: 'Zendesk',
           lastname:  '',
           login:     'noreply@zendesk.com',
@@ -151,8 +149,8 @@ class ZendeskImportTest < ActiveSupport::TestCase
         groups: [],
       },
       {
-        id:   90,
-        data: {
+        id:     90,
+        data:   {
           firstname: 'Hans',
           lastname:  'Peter Wurst',
           login:     'hansimerkur+zd-c1@znuny.com',
@@ -267,20 +265,20 @@ class ZendeskImportTest < ActiveSupport::TestCase
 
     checks = [
       {
-        id: 1,
+        id:   1,
         data: {
-          name: 'Zammad Foundation',
-          note: '',
-          api_key: nil,
+          name:            'Zammad Foundation',
+          note:            '',
+          api_key:         nil,
           custom_dropdown: nil,
         },
       },
       {
-        id: 2,
+        id:   2,
         data: {
-          name: 'Znuny',
-          note: nil,
-          api_key: 'my api öäüß',
+          name:            'Znuny',
+          note:            nil,
+          api_key:         'my api öäüß',
           custom_dropdown: 'b',
         },
       },
@@ -328,7 +326,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
 
     checks = [
       {
-        id: 2,
+        id:   2,
         data: {
           title:                    'test',
           #note:                    'This is the first comment. Feel free to delete this sample ticket.',
@@ -350,7 +348,7 @@ class ZendeskImportTest < ActiveSupport::TestCase
         },
       },
       {
-        id: 3,
+        id:   3,
         data: {
           title:                    'Bob Smith, here is the test ticket you requested',
           note:                     'Hello! This is a Zendesk ticket. We are going to go through the basic support ticket operation in Zendesk.
@@ -373,7 +371,7 @@ If you\'re reading this message in your email, click the ticket number link that
         },
       },
       {
-        id: 5,
+        id:   5,
         data: {
           title:                    'Twitter',
           note:                     "@gabyalanisr Brandon Arely Snuppy Jaz Jerry Liz Irvig &amp; Wera\nY Losa Otrs Yop \npero si quieres Los Que Puedas",
@@ -389,7 +387,7 @@ If you\'re reading this message in your email, click the ticket number link that
         },
       },
       {
-        id: 143,
+        id:   143,
         data: {
           title:                    'Basti ist cool',
           note:                     'Basti ist cool',
@@ -442,25 +440,29 @@ If you\'re reading this message in your email, click the ticket number link that
     checks = [
       {
         message_id: 39_984_258_725,
-        data: {
+        data:       {
           count: 1,
           1 => {
             preferences: {
-              'Content-Type' => 'image/jpeg'
+              'Content-Type'    => 'image/jpeg',
+              'resizable'       => true,
+              'content_preview' => true
             },
-            filename: '1a3496b9-53d9-494d-bbb0-e1d2e22074f8.jpeg',
+            filename:    '1a3496b9-53d9-494d-bbb0-e1d2e22074f8.jpeg',
           },
         },
       },
       {
         message_id: 32_817_827_921,
-        data: {
+        data:       {
           count: 1,
           1 => {
             preferences: {
-              'Content-Type' => 'image/jpeg'
+              'Content-Type'    => 'image/jpeg',
+              'resizable'       => true,
+              'content_preview' => true
             },
-            filename: 'paris.jpg',
+            filename:    'paris.jpg',
           },
         },
       },

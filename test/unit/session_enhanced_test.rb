@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class SessionEnhancedTest < ActiveSupport::TestCase
@@ -10,36 +9,36 @@ class SessionEnhancedTest < ActiveSupport::TestCase
 
     UserInfo.current_user_id = 1
     agent1 = User.create_or_update(
-      login: 'session-agent-1',
+      login:     'session-agent-1',
       firstname: 'Session',
-      lastname: 'Agent 1',
-      email: 'session-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      lastname:  'Agent 1',
+      email:     'session-agent1@example.com',
+      password:  'agentpw',
+      active:    true,
+      roles:     roles,
+      groups:    groups,
     )
     agent1.save!
     agent2 = User.create_or_update(
-      login: 'session-agent-2',
+      login:     'session-agent-2',
       firstname: 'Session',
-      lastname: 'Agent 2',
-      email: 'session-agent2@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      lastname:  'Agent 2',
+      email:     'session-agent2@example.com',
+      password:  'agentpw',
+      active:    true,
+      roles:     roles,
+      groups:    groups,
     )
     agent2.save!
     agent3 = User.create_or_update(
-      login: 'session-agent-3',
+      login:     'session-agent-3',
       firstname: 'Session',
-      lastname: 'Agent 3',
-      email: 'session-agent3@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      lastname:  'Agent 3',
+      email:     'session-agent3@example.com',
+      password:  'agentpw',
+      active:    true,
+      roles:     roles,
+      groups:    groups,
     )
     agent3.save!
 
@@ -155,16 +154,16 @@ class SessionEnhancedTest < ActiveSupport::TestCase
     travel 2.seconds
 
     # check client sessions
-    assert(!Sessions.session_exists?(client_id1), 'check if session is removed')
-    assert(!Sessions.session_exists?(client_id2), 'check if session is removed')
-    assert(!Sessions.session_exists?(client_id3), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id1), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id2), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id3), 'check if session is removed')
 
     sleep 6
 
     # check client threads
-    assert(!Sessions.thread_client_exists?(client_id1), 'check if client is running')
-    assert(!Sessions.thread_client_exists?(client_id2), 'check if client is running')
-    assert(!Sessions.thread_client_exists?(client_id3), 'check if client is running')
+    assert_not(Sessions.thread_client_exists?(client_id1), 'check if client is running')
+    assert_not(Sessions.thread_client_exists?(client_id2), 'check if client is running')
+    assert_not(Sessions.thread_client_exists?(client_id3), 'check if client is running')
 
     # exit jobs
     jobs.exit
@@ -185,39 +184,39 @@ class SessionEnhancedTest < ActiveSupport::TestCase
 
     UserInfo.current_user_id = 1
     agent1 = User.create_or_update(
-      login: 'session-agent-1',
-      firstname: 'Session',
-      lastname: 'Agent 1',
-      email: 'session-agent1@example.com',
-      password: 'agentpw',
-      active: true,
+      login:        'session-agent-1',
+      firstname:    'Session',
+      lastname:     'Agent 1',
+      email:        'session-agent1@example.com',
+      password:     'agentpw',
+      active:       true,
       organization: organization,
-      roles: roles,
-      groups: groups,
+      roles:        roles,
+      groups:       groups,
     )
     agent1.save!
     agent2 = User.create_or_update(
-      login: 'session-agent-2',
-      firstname: 'Session',
-      lastname: 'Agent 2',
-      email: 'session-agent2@example.com',
-      password: 'agentpw',
-      active: true,
+      login:        'session-agent-2',
+      firstname:    'Session',
+      lastname:     'Agent 2',
+      email:        'session-agent2@example.com',
+      password:     'agentpw',
+      active:       true,
       organization: organization,
-      roles: roles,
-      groups: groups,
+      roles:        roles,
+      groups:       groups,
     )
     agent2.save!
     agent3 = User.create_or_update(
-      login: 'session-agent-3',
-      firstname: 'Session',
-      lastname: 'Agent 3',
-      email: 'session-agent3@example.com',
-      password: 'agentpw',
-      active: true,
+      login:        'session-agent-3',
+      firstname:    'Session',
+      lastname:     'Agent 3',
+      email:        'session-agent3@example.com',
+      password:     'agentpw',
+      active:       true,
       organization: organization,
-      roles: roles,
-      groups: groups,
+      roles:        roles,
+      groups:       groups,
     )
     agent3.save!
 
@@ -308,10 +307,10 @@ class SessionEnhancedTest < ActiveSupport::TestCase
     travel 2.seconds
 
     # check client sessions
-    assert(!Sessions.session_exists?(client_id1_0), 'check if session is removed')
-    assert(!Sessions.session_exists?(client_id1_1), 'check if session is removed')
-    assert(!Sessions.session_exists?(client_id2), 'check if session is removed')
-    assert(!Sessions.session_exists?(client_id3), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id1_0), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id1_1), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id2), 'check if session is removed')
+    assert_not(Sessions.session_exists?(client_id3), 'check if session is removed')
 
     # exit jobs
     jobs.exit

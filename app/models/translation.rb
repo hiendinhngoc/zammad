@@ -21,6 +21,7 @@ all:
 
   def self.sync(dedicated_locale = nil)
     return true if load_from_file(dedicated_locale)
+
     load
   end
 
@@ -74,13 +75,13 @@ push translations to online
     result = UserAgent.post(
       url,
       {
-        locale: locale,
-        translations: translations_to_push,
-        fqdn: Setting.get('fqdn'),
+        locale:         locale,
+        translations:   translations_to_push,
+        fqdn:           Setting.get('fqdn'),
         translator_key: translator_key,
       },
       {
-        json: true,
+        json:         true,
         open_timeout: 8,
         read_timeout: 24,
       }
@@ -171,6 +172,7 @@ get list of translations
     %w[yes no or Year Years Month Months Day Days Hour Hours Minute Minutes Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec January February March April May June July August September October November December Mon Tue Wed Thu Fri Sat Sun Monday Tuesday Wednesday Thursday Friday Saturday Sunday].each do |presort|
       list.each do |item|
         next if item[1] != presort
+
         presorted_list.push item
         list.delete item
         #list.unshift presort
@@ -213,6 +215,90 @@ translate strings in ruby context, e. g. for notifications
 
 =begin
 
+translate timestampes in ruby context, e. g. for notifications
+
+  translated = Translation.timestamp('de-de', 'Europe/Berlin', '2018-10-10T10:00:00Z0')
+
+or
+
+  translated = Translation.timestamp('de-de', 'Europe/Berlin', Time.zone.parse('2018-10-10T10:00:00Z0'))
+
+=end
+
+  def self.timestamp(locale, timezone, timestamp)
+
+    if timestamp.class == String
+      begin
+        timestamp_parsed = Time.zone.parse(timestamp)
+        return timestamp.to_s if !timestamp_parsed
+
+        timestamp = timestamp_parsed
+      rescue
+        return timestamp.to_s
+      end
+    end
+
+    record = Translation.where(locale: locale, source: 'timestamp', format: 'time').pluck(:target).first
+    return timestamp.to_s if !record
+
+    begin
+      timestamp = timestamp.in_time_zone(timezone)
+    rescue
+      return timestamp.to_s
+    end
+    record.sub!('dd', format('%02d', timestamp.day))
+    record.sub!('d', timestamp.day.to_s)
+    record.sub!('mm', format('%02d', timestamp.month))
+    record.sub!('m', timestamp.month.to_s)
+    record.sub!('yyyy', timestamp.year.to_s)
+    record.sub!('yy', timestamp.year.to_s.last(2))
+    record.sub!('SS', format('%02d', timestamp.sec.to_s))
+    record.sub!('MM', format('%02d', timestamp.min.to_s))
+    record.sub!('HH', format('%02d', timestamp.hour.to_s))
+    "#{record} (#{timezone})"
+  end
+
+=begin
+
+translate date in ruby context, e. g. for notifications
+
+  translated = Translation.date('de-de', '2018-10-10')
+
+or
+
+  translated = Translation.date('de-de', Date.parse('2018-10-10'))
+
+=end
+
+  def self.date(locale, date)
+
+    if date.class == String
+      begin
+        date_parsed = Date.parse(date)
+        return date.to_s if !date_parsed
+
+        date = date_parsed
+      rescue
+        return date.to_s
+      end
+    end
+
+    return date.to_s if date.class != Date
+
+    record = Translation.where(locale: locale, source: 'date', format: 'time').pluck(:target).first
+    return date.to_s if !record
+
+    record.sub!('dd', format('%02d', date.day))
+    record.sub!('d', date.day.to_s)
+    record.sub!('mm', format('%02d', date.month))
+    record.sub!('m', date.month.to_s)
+    record.sub!('yyyy', date.year.to_s)
+    record.sub!('yy', date.year.to_s.last(2))
+    record
+  end
+
+=begin
+
 load translations from local
 
 all:
@@ -231,6 +317,7 @@ all:
     locals_to_sync(dedicated_locale).each do |locale|
       file = Rails.root.join(directory, "#{locale}-#{version}.yml")
       return false if !File.exist?(file)
+
       data = YAML.load_file(file)
       to_database(locale, data)
     end
@@ -264,7 +351,7 @@ all:
           version: version,
         },
         {
-          json: true,
+          json:         true,
           open_timeout: 8,
           read_timeout: 24,
         }
@@ -323,12 +410,14 @@ Get source file at https://i18n.zammad.com/api/v1/translations_empty_translation
     translation_raw = []
     rows.each do |row|
       raise "Can't import translation, source is missing" if row[0].blank?
+
       if row[1].blank?
         warn "Skipped #{row[0]}, because translation is blank"
         next
       end
       raise "Can't import translation, format is missing" if row[2].blank?
       raise "Can't import translation, format is invalid (#{row[2]})" if row[2] !~ /^(time|string)$/
+
       item = {
         'locale'         => locale.locale,
         'source'         => row[0],
@@ -342,45 +431,39 @@ Get source file at https://i18n.zammad.com/api/v1/translations_empty_translation
     true
   end
 
+  def self.remote_translation_need_update?(raw, translations)
+    translations.each do |row|
+      next if row[1] != raw['locale']
+      next if row[2] != raw['source']
+      next if row[3] != raw['format']
+      return false if row[4] == raw['target'] # no update if target is still the same
+      return false if row[4] != row[5] # no update if translation has already changed
+
+      return [true, Translation.find(row[0])]
+    end
+    [true, nil]
+  end
+
   private_class_method def self.to_database(locale, data)
-    translations = Translation.where(locale: locale).all
+    translations = Translation.where(locale: locale).pluck(:id, :locale, :source, :format, :target, :target_initial).to_a
     ActiveRecord::Base.transaction do
+      translations_to_import = []
       data.each do |translation_raw|
+        result = Translation.remote_translation_need_update?(translation_raw, translations)
+        next if result == false
+        next if result.class != Array
 
-        # handle case insensitive sql
-        translation = nil
-        translations.each do |item|
-          next if item.format != translation_raw['format']
-          next if item.source != translation_raw['source']
-          translation = item
-          break
-        end
-        if translation
-
-          # verify if update is needed
-          update_needed = false
-          translation_raw.each_key do |key|
-
-            # if translation target has changes
-            next unless translation_raw[key] != translation.target
-
-            # do not update translations which are already changed by user
-            if translation.target == translation.target_initial
-              update_needed = true
-              break
-            end
-          end
-          if update_needed
-            translation.update!(translation_raw.symbolize_keys!)
-            translation.save
-          end
+        if result[1]
+          result[1].update!(translation_raw.symbolize_keys!)
+          result[1].save
         else
-          if !UserInfo.current_user_id
-            translation_raw['updated_by_id'] = 1
-            translation_raw['created_by_id'] = 1
-          end
-          Translation.create(translation_raw.symbolize_keys!)
+          translation_raw['updated_by_id'] = UserInfo.current_user_id || 1
+          translation_raw['created_by_id'] = UserInfo.current_user_id || 1
+          translations_to_import.push Translation.new(translation_raw.symbolize_keys!)
         end
+      end
+      if translations_to_import.present?
+        Translation.import translations_to_import
       end
     end
   end
@@ -401,8 +484,9 @@ Get source file at https://i18n.zammad.com/api/v1/translations_empty_translation
   private
 
   def set_initial
-    return true if target_initial
+    return true if target_initial.present?
     return true if target_initial == ''
+
     self.target_initial = target
     true
   end

@@ -2,9 +2,12 @@ require 'rails_helper'
 
 RSpec.describe Translation do
 
-  context 'default translations' do
-    Translation.reset('de-de')
+  before(:all) do
+    Translation.where(locale: 'de-de').destroy_all
     Translation.sync('de-de')
+  end
+
+  context 'default string translations' do
 
     it 'en with existing word' do
       expect(Translation.translate('en', 'New')).to eq('New')
@@ -28,13 +31,158 @@ RSpec.describe Translation do
 
   end
 
-  context 'custom translation tests' do
-    Translation.where(locale: 'de-de').destroy_all
-    Translation.sync('de-de')
+  context 'default timestamp translations' do
 
-    locale = 'de-de'
+    it 'de-de with array' do
+      expect(Translation.timestamp('de-de', 'Europe/Berlin', ['some value'])).to eq('["some value"]')
+    end
+
+    it 'not_existing with timestamp as string' do
+      expect(Translation.timestamp('not_existing', 'Europe/Berlin', '2018-10-10T10:00:00Z0')).to eq('2018-10-10 10:00:00 UTC')
+    end
+
+    it 'not_existing with time object' do
+      expect(Translation.timestamp('not_existing', 'Europe/Berlin', Time.zone.parse('2018-10-10T10:00:00Z0'))).to eq('2018-10-10 10:00:00 UTC')
+    end
+
+    it 'not_existing with invalid timestamp string' do
+      expect(Translation.timestamp('not_existing', 'Europe/Berlin', 'something')).to eq('something')
+    end
+
+    it 'en-us with invalid time zone' do
+      expect(Translation.timestamp('en-us', 'Europe/Berlin', '2018-10-10T10:00:00Z0')).to eq('10/10/2018 12:00 (Europe/Berlin)')
+    end
+
+    it 'en-us with timestamp as string' do
+      expect(Translation.timestamp('en-us', 'Europe/Berlin', '2018-10-10T10:00:00Z0')).to eq('10/10/2018 12:00 (Europe/Berlin)')
+    end
+
+    it 'en-us with time object' do
+      expect(Translation.timestamp('en-us', 'Europe/Berlin', Time.zone.parse('2018-10-10T10:00:00Z0'))).to eq('10/10/2018 12:00 (Europe/Berlin)')
+    end
+
+    it 'de-de with timestamp as string' do
+      expect(Translation.timestamp('de-de', 'Europe/Berlin', '2018-10-10T10:00:00Z0')).to eq('10.10.2018 12:00 (Europe/Berlin)')
+    end
+
+    it 'de-de with time object' do
+      expect(Translation.timestamp('de-de', 'Europe/Berlin', Time.zone.parse('2018-10-10T10:00:00Z0'))).to eq('10.10.2018 12:00 (Europe/Berlin)')
+    end
+
+  end
+
+  context 'default date translations' do
+
+    it 'de-de with array' do
+      expect(Translation.date('de-de', ['some value'])).to eq('["some value"]')
+    end
+
+    it 'not_existing with date as string' do
+      expect(Translation.date('not_existing', '2018-10-10')).to eq('2018-10-10')
+    end
+
+    it 'not_existing with date object' do
+      expect(Translation.date('not_existing', Date.parse('2018-10-10'))).to eq('2018-10-10')
+    end
+
+    it 'not_existing with invalid data as string' do
+      expect(Translation.date('not_existing', 'something')).to eq('something')
+    end
+
+    it 'en-us with date as string' do
+      expect(Translation.date('en-us', '2018-10-10')).to eq('10/10/2018')
+    end
+
+    it 'en-us with date object' do
+      expect(Translation.date('en-us', Date.parse('2018-10-10'))).to eq('10/10/2018')
+    end
+
+    it 'de-de with date as string' do
+      expect(Translation.date('de-de', '2018-10-10')).to eq('10.10.2018')
+    end
+
+    it 'de-de with date object' do
+      expect(Translation.date('de-de', Date.parse('2018-10-10'))).to eq('10.10.2018')
+    end
+
+  end
+
+  context 'remote_translation_need_update? tests' do
+
+    it 'translation is still the same' do
+      translation = Translation.where(locale: 'de-de', format: 'string').last
+      translations = Translation.where(locale: 'de-de').pluck(:id, :locale, :source, :format, :target, :target_initial).to_a
+      expect(
+        Translation.remote_translation_need_update?(
+          {
+            'source'         => translation.source,
+            'format'         => translation.format,
+            'locale'         => translation.locale,
+            'target'         => translation.target,
+            'target_initial' => translation.target_initial,
+          }, translations
+        )
+      ).to be false
+    end
+
+    it 'translation target has locally changed' do
+      translation = Translation.where(locale: 'de-de', format: 'string').last
+      translation.target = 'some new translation'
+      translation.save!
+      translations = Translation.where(locale: 'de-de').pluck(:id, :locale, :source, :format, :target, :target_initial).to_a
+      expect(
+        Translation.remote_translation_need_update?(
+          {
+            'source'         => translation.source,
+            'format'         => translation.format,
+            'locale'         => translation.locale,
+            'target'         => translation.target,
+            'target_initial' => translation.target_initial,
+          }, translations
+        )
+      ).to be false
+    end
+
+    it 'translation target has remotely changed' do
+      translation = Translation.where(locale: 'de-de', format: 'string').last
+      translations = Translation.where(locale: 'de-de').pluck(:id, :locale, :source, :format, :target, :target_initial).to_a
+      (result, translation_result) = Translation.remote_translation_need_update?(
+        {
+          'source'         => translation.source,
+          'format'         => translation.format,
+          'locale'         => translation.locale,
+          'target'         => 'some new translation by remote',
+          'target_initial' => 'some new translation by remote',
+        }, translations
+      )
+      expect(result).to be true
+      expect(translation_result.attributes).to eq translation.attributes
+    end
+
+    it 'translation target has remotely and locally changed' do
+      translation = Translation.where(locale: 'de-de', format: 'string').last
+      translation.target = 'some new translation'
+      translation.save!
+      translations = Translation.where(locale: 'de-de').pluck(:id, :locale, :source, :format, :target, :target_initial).to_a
+      expect(
+        Translation.remote_translation_need_update?(
+          {
+            'source'         => translation.source,
+            'format'         => translation.format,
+            'locale'         => translation.locale,
+            'target'         => 'some new translation by remote',
+            'target_initial' => 'some new translation by remote',
+          }, translations
+        )
+      ).to be false
+    end
+
+  end
+
+  context 'custom translation tests' do
 
     it 'cycle of change and reload translation' do
+      locale = 'de-de'
 
       # check for non existing custom changes
       list = Translation.lang(locale)
@@ -119,6 +267,20 @@ RSpec.describe Translation do
       expect(File.exist?(file)).to be false
       Translation.fetch(locale)
       expect(File.exist?(file)).to be true
+    end
+
+  end
+
+  context 'sync duplicate tests' do
+
+    it 'check duplication of entries' do
+      Translation.where(locale: 'de-de').destroy_all
+      Translation.sync('de-de')
+      translation_count = Translation.where(locale: 'de-de').count
+      Translation.sync('de-de')
+      expect(
+        Translation.where(locale: 'de-de').count
+      ).to be translation_count
     end
 
   end

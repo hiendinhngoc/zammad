@@ -1,4 +1,3 @@
-
 require 'integration_test_helper'
 
 class UserAgentTest < ActiveSupport::TestCase
@@ -130,7 +129,7 @@ class UserAgentTest < ActiveSupport::TestCase
       "#{host}/test_basic_auth/get/1?submitted=123",
       {},
       {
-        user: 'basic_auth_user',
+        user:     'basic_auth_user',
         password: 'test123',
       }
     )
@@ -150,14 +149,14 @@ class UserAgentTest < ActiveSupport::TestCase
       "#{host}/test_basic_auth/get/1?submitted=123",
       {},
       {
-        user: 'basic_auth_user_not_existing',
+        user:     'basic_auth_user_not_existing',
         password: 'test<>123',
       }
     )
     assert(result)
     assert_equal(false, result.success?)
     assert_equal('401', result.code)
-    assert_equal(NilClass, result.body.class)
+    assert_equal("HTTP Basic: Access denied.\n", result.body)
 
     # post / 200
     result = UserAgent.post(
@@ -166,7 +165,7 @@ class UserAgentTest < ActiveSupport::TestCase
         submitted: 'some value',
       },
       {
-        user: 'basic_auth_user',
+        user:     'basic_auth_user',
         password: 'test123',
       }
     )
@@ -188,14 +187,14 @@ class UserAgentTest < ActiveSupport::TestCase
         submitted: 'some value',
       },
       {
-        user: 'basic_auth_user_not_existing',
+        user:     'basic_auth_user_not_existing',
         password: 'test<>123',
       }
     )
     assert(result)
     assert_equal(false, result.success?)
     assert_equal('401', result.code)
-    assert_equal(NilClass, result.body.class)
+    assert_equal("HTTP Basic: Access denied.\n", result.body)
 
     # put / 200
     result = UserAgent.put(
@@ -204,7 +203,7 @@ class UserAgentTest < ActiveSupport::TestCase
         submitted: 'some value',
       },
       {
-        user: 'basic_auth_user',
+        user:     'basic_auth_user',
         password: 'test123',
       }
     )
@@ -226,20 +225,20 @@ class UserAgentTest < ActiveSupport::TestCase
         submitted: 'some value',
       },
       {
-        user: 'basic_auth_user_not_existing',
+        user:     'basic_auth_user_not_existing',
         password: 'test<>123',
       }
     )
     assert(result)
     assert_equal(false, result.success?)
     assert_equal('401', result.code)
-    assert_equal(NilClass, result.body.class)
+    assert_equal("HTTP Basic: Access denied.\n", result.body)
 
     # delete / 200
     result = UserAgent.delete(
       "#{host}/test_basic_auth/delete/1",
       {
-        user: 'basic_auth_user',
+        user:     'basic_auth_user',
         password: 'test123',
       }
     )
@@ -257,14 +256,14 @@ class UserAgentTest < ActiveSupport::TestCase
     result = UserAgent.delete(
       "#{host}/test_basic_auth/delete/1",
       {
-        user: 'basic_auth_user_not_existing',
+        user:     'basic_auth_user_not_existing',
         password: 'test<>123',
       }
     )
     assert(result)
     assert_equal(false, result.success?)
     assert_equal('401', result.code)
-    assert_equal(NilClass, result.body.class)
+    assert_equal("HTTP Basic: Access denied.\n", result.body)
   end
 
   # check
@@ -289,7 +288,7 @@ class UserAgentTest < ActiveSupport::TestCase
     result = UserAgent.request(
       "#{host}/test_basic_auth/redirect",
       {
-        user: 'basic_auth_user',
+        user:     'basic_auth_user',
         password: 'test123',
       }
     )
@@ -308,14 +307,14 @@ class UserAgentTest < ActiveSupport::TestCase
     result = UserAgent.request(
       "#{host}/test_basic_auth/redirect",
       {
-        user: 'basic_auth_user_not_existing',
+        user:     'basic_auth_user_not_existing',
         password: 'test123',
       }
     )
     assert(result)
     assert_equal(false, result.success?)
     assert_equal('401', result.code)
-    assert_equal(NilClass, result.body.class)
+    assert_equal("HTTP Basic: Access denied.\n", result.body)
   end
 
   # check
@@ -479,7 +478,7 @@ class UserAgentTest < ActiveSupport::TestCase
       assert(result.body =~ /"remote_ip":"#{ENV['ZAMMAD_PROXY_REMOTE_IP_CHECK']}"/)
     end
 
-    # get / 401
+    # get / 404
     result = UserAgent.get(
       "#{host}/test/not_existing",
       {
@@ -493,7 +492,7 @@ class UserAgentTest < ActiveSupport::TestCase
     assert_equal(false, result.success?)
     assert_equal('404', result.code)
     assert_equal(NilClass, result.body.class)
-    assert(!result.data)
+    assert_not(result.data)
 
     # post / 200
     result = UserAgent.post(

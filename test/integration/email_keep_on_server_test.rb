@@ -1,4 +1,3 @@
-
 require 'test_helper'
 require 'net/imap'
 
@@ -11,37 +10,38 @@ class EmailKeepOnServerTest < ActiveSupport::TestCase
     if ENV['KEEP_ON_MAIL_SERVER_ACCOUNT'].blank?
       raise "Need KEEP_ON_MAIL_SERVER_ACCOUNT as ENV variable like export KEEP_ON_MAIL_SERVER_ACCOUNT='user:somepass'"
     end
+
     @server_login = ENV['KEEP_ON_MAIL_SERVER_ACCOUNT'].split(':')[0]
     @server_password = ENV['KEEP_ON_MAIL_SERVER_ACCOUNT'].split(':')[1]
 
     @folder = "keep_on_mail_server_#{rand(999_999_999)}"
 
     email_address = EmailAddress.create!(
-      realname: 'me Helpdesk',
-      email: "me#{rand(999_999_999)}@example.com",
+      realname:      'me Helpdesk',
+      email:         "me#{rand(999_999_999)}@example.com",
       updated_by_id: 1,
       created_by_id: 1,
     )
 
     group = Group.create_or_update(
-      name: 'KeepOnServerTest',
+      name:             'KeepOnServerTest',
       email_address_id: email_address.id,
-      updated_by_id: 1,
-      created_by_id: 1,
+      updated_by_id:    1,
+      created_by_id:    1,
     )
 
     @channel = Channel.create!(
-      area: 'Email::Account',
-      group_id: group.id,
-      options: {
-        inbound: {
+      area:          'Email::Account',
+      group_id:      group.id,
+      options:       {
+        inbound:  {
           adapter: 'imap',
           options: {
-            host: ENV['KEEP_ON_MAIL_SERVER'],
-            user: @server_login,
+            host:     ENV['KEEP_ON_MAIL_SERVER'],
+            user:     @server_login,
             password: @server_password,
-            ssl: true,
-            folder: @folder,
+            ssl:      true,
+            folder:   @folder,
             #keep_on_server: true,
           }
         },
@@ -49,7 +49,7 @@ class EmailKeepOnServerTest < ActiveSupport::TestCase
           adapter: 'sendmail'
         }
       },
-      active: true,
+      active:        true,
       updated_by_id: 1,
       created_by_id: 1,
     )

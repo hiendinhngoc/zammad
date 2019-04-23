@@ -20,9 +20,9 @@ class Sessions::Event::ChatStatusCustomer < Sessions::Event::ChatBase
         if @payload['data']['url']
           message = {
             event: 'chat_session_notice',
-            data: {
+            data:  {
               session_id: chat_session.session_id,
-              message: @payload['data']['url'],
+              message:    @payload['data']['url'],
             },
           }
           chat_session.send_to_recipients(message, @client_id)
@@ -32,16 +32,17 @@ class Sessions::Event::ChatStatusCustomer < Sessions::Event::ChatBase
 
     {
       event: 'chat_status_customer',
-      data: current_chat.customer_state(session_id),
+      data:  current_chat.customer_state(session_id),
     }
   end
 
   def check_chat_block_by_ip
     chat = current_chat
     return true if !chat.blocked_ip?(@remote_ip)
+
     error = {
       event: 'chat_error',
-      data: {
+      data:  {
         state: 'chat_unavailable',
       },
     }
@@ -52,9 +53,10 @@ class Sessions::Event::ChatStatusCustomer < Sessions::Event::ChatBase
   def check_chat_block_by_country
     chat = current_chat
     return true if !chat.blocked_country?(@remote_ip)
+
     error = {
       event: 'chat_error',
-      data: {
+      data:  {
         state: 'chat_unavailable',
       },
     }

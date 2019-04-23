@@ -3,27 +3,23 @@
 class Observer::Ticket::UserTicketCounter < ActiveRecord::Observer
   observe 'ticket'
 
-  def after_create(record)
-    user_ticket_counter_update(record)
-  end
-
-  def after_update(record)
+  def after_commit(record)
     user_ticket_counter_update(record)
   end
 
   def user_ticket_counter_update(record)
 
     # return if we run import mode
-    return if Setting.get('import_mode')
+    return true if Setting.get('import_mode')
 
-    return if !record.customer_id
+    return true if record.destroyed?
+
+    return true if !record.customer_id
 
     # send background job
-    Delayed::Job.enqueue(
-      Observer::Ticket::UserTicketCounter::BackgroundJob.new(
-        record.customer_id,
-        UserInfo.current_user_id || record.updated_by_id,
-      )
+    TicketUserTicketCounterJob.perform_later(
+      record.customer_id,
+      UserInfo.current_user_id || record.updated_by_id,
     )
   end
 

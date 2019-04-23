@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class AgentOrganizationProfileTest < TestCase
@@ -11,7 +10,7 @@ class AgentOrganizationProfileTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -27,17 +26,17 @@ class AgentOrganizationProfileTest < TestCase
     )
 
     watch_for(
-      css: '.active .profile-window',
+      css:   '.active .profile-window',
       value: 'note',
     )
     watch_for(
-      css: '.active .profile-window',
+      css:   '.active .profile-window',
       value: 'member',
     )
 
     # update note
     set(
-      css: '.active .profile [data-name="note"]',
+      css:   '.active .profile [data-name="note"]',
       value: note,
     )
     empty_search()
@@ -47,27 +46,25 @@ class AgentOrganizationProfileTest < TestCase
     click(css: '.active .js-action .icon-arrow-down', fast: true)
     click(css: '.active .js-action [data-type="edit"]')
 
+    modal_ready()
     watch_for(
-      css: '.active .modal',
-      value: 'note',
-    )
-    watch_for(
-      css: '.active .modal',
+      css:   '.active .modal',
       value: note,
     )
 
     set(
-      css: '.modal [name="name"]',
+      css:   '.modal [name="name"]',
       value: 'Z2',
     )
     set(
-      css: '.active .modal [data-name="note"]',
+      css:   '.active .modal [data-name="note"]',
       value: 'some note abc',
     )
     click(css: '.active .modal button.js-submit')
+    modal_disappear()
 
     watch_for(
-      css: '.active .profile-window',
+      css:   '.active .profile-window',
       value: 'some note abc',
     )
 
@@ -80,15 +77,14 @@ class AgentOrganizationProfileTest < TestCase
     # change lastname back
     click(css: '.active .js-action .icon-arrow-down', fast: true)
     click(css: '.active .js-action [data-type="edit"]')
-    watch_for(
-      css: '.active .modal',
-      value: 'note',
-    )
+
+    modal_ready()
     set(
-      css: '.modal [name="name"]',
+      css:   '.modal [name="name"]',
       value: 'Zammad Foundation',
     )
     click(css: '.active .modal button.js-submit')
+    modal_disappear()
 
     verify_task(
       data: {
@@ -100,9 +96,9 @@ class AgentOrganizationProfileTest < TestCase
     ticket_create(
       data: {
         customer: 'nico',
-        group: 'Users',
-        title: 'org profile check ' + message,
-        body: 'org profile check ' + message,
+        group:    'Users',
+        title:    'org profile check ' + message,
+        body:     'org profile check ' + message,
       },
     )
 
@@ -111,7 +107,7 @@ class AgentOrganizationProfileTest < TestCase
       value: 'Zammad Foundation',
     )
     watch_for(
-      css: '.active .profile-window',
+      css:   '.active .profile-window',
       value: 'org profile check ' + message,
     )
     tasks_close_all()
@@ -124,10 +120,10 @@ class AgentOrganizationProfileTest < TestCase
 
     browser2 = browser_instance
     login(
-      browser: browser2,
+      browser:  browser2,
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all(
       browser: browser2,
@@ -135,18 +131,18 @@ class AgentOrganizationProfileTest < TestCase
 
     organization_open_by_search(
       browser: browser1,
-      value: 'Zammad Foundation',
+      value:   'Zammad Foundation',
     )
     organization_open_by_search(
       browser: browser2,
-      value: 'Zammad Foundation',
+      value:   'Zammad Foundation',
     )
 
     # update note
     set(
       browser: browser1,
-      css: '.active .profile [data-name="note"]',
-      value: message,
+      css:     '.active .profile [data-name="note"]',
+      value:   message,
     )
     empty_search(
       browser: browser1,
@@ -155,8 +151,100 @@ class AgentOrganizationProfileTest < TestCase
     # verify
     watch_for(
       browser: browser2,
-      css: '.active .profile-window',
-      value: message,
+      css:     '.active .profile-window',
+      value:   message,
+    )
+  end
+
+  def test_org_profile_user_active_update
+    @browser = browser_instance
+    login(
+      username: 'master@example.com',
+      password: 'test',
+      url:      browser_url,
+    )
+    tasks_close_all()
+
+    # search and open org
+    organization_open_by_search(
+      value: 'Zammad Foundation',
+    )
+
+    watch_for(
+      css:   '.active .profile-window .userList-entry a.user-popover',
+      value: 'Nicole Braun',
+    )
+
+    exists(
+      css: '.active .profile-window .userList-entry .avatar--unique',
+    )
+
+    # open user and change status to inactive
+    click(
+      css: '.active .profile-window .userList-entry a.user-popover',
+    )
+    click(
+      css: '.active .profile-window .dropdown #userAction',
+    )
+    click(
+      css: '.active .profile-window .dropdown li[data-type="edit"]',
+    )
+    modal_ready()
+
+    select(
+      css:   '.active .modal select[name="active"]',
+      value: 'inactive'
+    )
+
+    click(
+      css: '.modal .js-submit',
+    )
+
+    modal_disappear()
+
+    # go back to the org and check for inactive status update
+    click(
+      css: '#navigation .nav-tab[data-key="Organization-1"]',
+    )
+
+    watch_for(
+      css: '.active .profile-window .userList-entry .avatar--unique.avatar--inactive',
+    )
+
+    # open user and change status to active again
+    click(
+      css: '.active .profile-window .userList-entry a.user-popover',
+    )
+    click(
+      css: '.active .profile-window .dropdown #userAction',
+    )
+    click(
+      css: '.active .profile-window .dropdown li[data-type="edit"]',
+    )
+    modal_ready()
+
+    select(
+      css:   '.active .modal select[name="active"]',
+      value: 'active'
+    )
+
+    click(
+      css: '.modal .js-submit',
+    )
+
+    modal_disappear()
+
+    # go back to the org and check for active status update
+    click(
+      css: '#navigation .nav-tab[data-key="Organization-1"]',
+    )
+
+    watch_for(
+      css: '.active .profile-window .userList-entry .avatar--unique',
+    )
+
+    exists_not(
+      css: '.active .profile-window .userList-entry .avatar--unique.avatar--inactive',
     )
   end
 end

@@ -1,4 +1,3 @@
-
 # content of this tags will also be removed
 Rails.application.config.html_sanitizer_tags_remove_content = %w[
   style
@@ -49,12 +48,12 @@ Rails.application.config.html_sanitizer_attributes_whitelist = {
 
 # only this css properties are allowed
 Rails.application.config.html_sanitizer_css_properties_whitelist = {
-  'img' => %w[
+  'img'   => %w[
     width height
     max-width min-width
     max-height min-height
   ],
-  'span' => %w[
+  'span'  => %w[
     color
   ],
   'table' => %w[
@@ -68,7 +67,7 @@ Rails.application.config.html_sanitizer_css_properties_whitelist = {
     border-top-color border-right-color border-bottom-color border-left-color
     border-top-style border-right-style border-bottom-style border-left-style
   ],
-  'th' => %w[
+  'th'    => %w[
     background background-color color font-size vertical-align
     margin margin-top margin-right margin-bottom margin-left
     padding padding-top padding-right padding-bottom padding-left
@@ -79,7 +78,7 @@ Rails.application.config.html_sanitizer_css_properties_whitelist = {
     border-top-color border-right-color border-bottom-color border-left-color
     border-top-style border-right-style border-bottom-style border-left-style
   ],
-  'tr' => %w[
+  'tr'    => %w[
     background background-color color font-size vertical-align
     margin margin-top margin-right margin-bottom margin-left
     padding padding-top padding-right padding-bottom padding-left
@@ -90,7 +89,7 @@ Rails.application.config.html_sanitizer_css_properties_whitelist = {
     border-top-color border-right-color border-bottom-color border-left-color
     border-top-style border-right-style border-bottom-style border-left-style
   ],
-  'td' => %w[
+  'td'    => %w[
     background background-color color font-size vertical-align
     margin margin-top margin-right margin-bottom margin-left
     padding padding-top padding-right padding-bottom padding-left
@@ -112,7 +111,7 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'display:none',
     'visibility:hidden',
   ],
-  'th' => [
+  'th'    => [
     'font-size:0',
     'font-size:0px',
     'font-size:0em',
@@ -120,7 +119,7 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'display:none',
     'visibility:hidden',
   ],
-  'tr' => [
+  'tr'    => [
     'font-size:0',
     'font-size:0px',
     'font-size:0em',
@@ -128,7 +127,7 @@ Rails.application.config.html_sanitizer_css_values_backlist = {
     'display:none',
     'visibility:hidden',
   ],
-  'td' => [
+  'td'    => [
     'font-size:0',
     'font-size:0px',
     'font-size:0em',

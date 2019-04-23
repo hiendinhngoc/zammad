@@ -2,6 +2,14 @@
 
 class Organization
   module Search
+    extend ActiveSupport::Concern
+
+    included do
+      include HasSearchSortable
+    end
+
+    # methods defined here are going to extend the class, not the instance of it
+    class_methods do
 
 =begin
 
@@ -22,13 +30,14 @@ returns if user has no permissions to search
 
 =end
 
-    def search_preferences(current_user)
-      return false if !current_user.permissions?('ticket.agent') && !current_user.permissions?('admin.organization')
-      {
-        prio: 1000,
-        direct_search_index: true,
-      }
-    end
+      def search_preferences(current_user)
+        return false if !current_user.permissions?('ticket.agent') && !current_user.permissions?('admin.organization')
+
+        {
+          prio:                1500,
+          direct_search_index: true,
+        }
+      end
 
 =begin
 
@@ -38,6 +47,15 @@ search organizations
     current_user: User.find(123),
     query: 'search something',
     limit: 15,
+    offset: 100,
+
+    # sort single column
+    sort_by: 'created_at',
+    order_by: 'asc',
+
+    # sort multiple columns
+    sort_by: [ 'created_at', 'updated_at' ],
+    order_by: [ 'asc', 'desc' ],
   )
 
 returns
@@ -46,55 +64,80 @@ returns
 
 =end
 
-    def search(params)
+      def search(params)
 
-      # get params
-      query = params[:query]
-      limit = params[:limit] || 10
-      current_user = params[:current_user]
+        # get params
+        query = params[:query]
+        limit = params[:limit] || 10
+        offset = params[:offset] || 0
+        current_user = params[:current_user]
 
-      # enable search only for agents and admins
-      return [] if !search_preferences(current_user)
+        # check sort
+        sort_by = search_get_sort_by(params, 'updated_at')
 
-      # try search index backend
-      if SearchIndexBackend.enabled?
-        items = SearchIndexBackend.search(query, limit, 'Organization')
-        organizations = []
-        items.each do |item|
-          organization = Organization.lookup(id: item[:id])
-          next if !organization
-          organizations.push organization
+        # check order
+        order_by = search_get_order_by(params, 'desc')
+
+        # enable search only for agents and admins
+        return [] if !search_preferences(current_user)
+
+        # try search index backend
+        if SearchIndexBackend.enabled?
+          items = SearchIndexBackend.search(query, 'Organization', limit:    limit,
+                                                                   from:     offset,
+                                                                   sort_by:  sort_by,
+                                                                   order_by: order_by)
+          organizations = []
+          items.each do |item|
+            organization = Organization.lookup(id: item[:id])
+            next if !organization
+
+            organizations.push organization
+          end
+          return organizations
         end
-        return organizations
-      end
 
-      # fallback do sql query
-      # - stip out * we already search for *query* -
-      query.delete! '*'
-      organizations = Organization.where(
-        'name LIKE ? OR note LIKE ?', "%#{query}%", "%#{query}%"
-      ).order('name').limit(limit).to_a
+        order_select_sql = search_get_order_select_sql(sort_by, order_by, 'organizations.updated_at')
+        order_sql        = search_get_order_sql(sort_by, order_by, 'organizations.updated_at ASC')
 
-      # if only a few organizations are found, search for names of users
-      if organizations.length <= 3
-        organizations_by_user = Organization.select('DISTINCT(organizations.id), organizations.name').joins('LEFT OUTER JOIN users ON users.organization_id = organizations.id').where(
-          'users.firstname LIKE ? or users.lastname LIKE ? or users.email LIKE ?', "%#{query}%", "%#{query}%", "%#{query}%"
-        ).order('organizations.name').limit(limit)
+        # fallback do sql query
+        # - stip out * we already search for *query* -
+        query.delete! '*'
+        organizations = Organization.where_or_cis(%i[name note], "%#{query}%")
+                                    .order(order_sql)
+                                    .offset(offset)
+                                    .limit(limit)
+                                    .to_a
+
+        # use result independent of size if an explicit offset is given
+        # this is the case for e.g. paginated searches
+        return organizations if params[:offset].present?
+        return organizations if organizations.length > 3
+
+        # if only a few organizations are found, search for names of users
+        organizations_by_user = Organization.select("DISTINCT(organizations.id), #{order_select_sql}")
+                                            .joins('LEFT OUTER JOIN users ON users.organization_id = organizations.id')
+                                            .where(User.or_cis(%i[firstname lastname email], "%#{query}%"))
+                                            .order(order_sql)
+                                            .limit(limit)
+
         organizations_by_user.each do |organization_by_user|
+
           organization_exists = false
           organizations.each do |organization|
-            if organization.id == organization_by_user.id
-              organization_exists = true
-            end
+            next if organization.id != organization_by_user.id
+
+            organization_exists = true
+            break
           end
 
           # get model with full data
-          if !organization_exists
-            organizations.push Organization.find(organization_by_user.id)
-          end
+          next if organization_exists
+
+          organizations.push Organization.find(organization_by_user.id)
         end
+        organizations
       end
-      organizations
     end
   end
 end

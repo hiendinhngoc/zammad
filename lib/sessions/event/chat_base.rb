@@ -1,23 +1,14 @@
 class Sessions::Event::ChatBase < Sessions::Event::Base
-
-  def initialize(params)
-    super(params)
-    return if !@is_web_socket
-    ActiveRecord::Base.establish_connection
-  end
-
-  def destroy
-    return if !@is_web_socket
-    ActiveRecord::Base.remove_connection
-  end
+  database_connection_required
 
   def run
 
     # check if feature is enabled
     return if Setting.get('chat')
+
     {
       event: 'chat_error',
-      data: {
+      data:  {
         state: 'chat_disabled',
       },
     }
@@ -31,7 +22,7 @@ class Sessions::Event::ChatBase < Sessions::Event::Base
     if !@payload['data'] || !@payload['data']['session_id']
       error = {
         event: 'chat_error',
-        data: {
+        data:  {
           state: 'Need session_id.',
         },
       }
@@ -39,9 +30,10 @@ class Sessions::Event::ChatBase < Sessions::Event::Base
       return
     end
     return true if current_chat_session
+
     error = {
       event: 'chat_error',
-      data: {
+      data:  {
         state: "No such session id #{@payload['data']['session_id']}",
       },
     }
@@ -56,9 +48,10 @@ class Sessions::Event::ChatBase < Sessions::Event::Base
   def check_chat_exists
     chat = current_chat
     return true if chat
+
     error = {
       event: 'chat_error',
-      data: {
+      data:  {
         state: 'no_such_chat',
       },
     }

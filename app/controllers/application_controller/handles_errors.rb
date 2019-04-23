@@ -7,6 +7,7 @@ module ApplicationController::HandlesErrors
     rescue_from ActiveRecord::RecordNotFound, with: :not_found
     rescue_from ActiveRecord::StatementInvalid, with: :unprocessable_entity
     rescue_from ActiveRecord::RecordInvalid, with: :unprocessable_entity
+    rescue_from ActiveRecord::DeleteRestrictionError, with: :unprocessable_entity
     rescue_from ArgumentError, with: :unprocessable_entity
     rescue_from Exceptions::UnprocessableEntity, with: :unprocessable_entity
     rescue_from Exceptions::NotAuthorized, with: :unauthorized
@@ -45,7 +46,9 @@ module ApplicationController::HandlesErrors
     respond_to do |format|
       format.json { render json: humanize_error(e.message), status: status }
       format.any do
+        errors = humanize_error(e.message)
         @exception = e
+        @message = errors[:error_human] || errors[:error] || param[:message]
         @traceback = !Rails.env.production?
         file = File.open(Rails.root.join('public', "#{status_code}.html"), 'r')
         render inline: file.read, status: status

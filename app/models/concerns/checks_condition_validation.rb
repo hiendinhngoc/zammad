@@ -23,11 +23,12 @@ module ChecksConditionValidation
 
     validate_condition['ticket.id'] = {
       operator: 'is',
-      value: 1,
+      value:    1,
     }
 
-    ticket_count, tickets = Ticket.selectors(validate_condition, 1, User.find(1))
+    ticket_count, tickets = Ticket.selectors(validate_condition, limit: 1, current_user: User.find(1))
     return true if ticket_count.present?
+
     raise Exceptions::UnprocessableEntity, 'Invalid ticket selector conditions'
   end
 end

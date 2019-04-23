@@ -16,8 +16,10 @@ returns
   def self.rebuild_all
     state_list_open = Ticket::State.by_category(:open)
 
-    ticket_ids = Ticket.where(state_id: state_list_open).pluck(:id)
+    ticket_ids = Ticket.where(state_id: state_list_open).limit(20_000).pluck(:id)
     ticket_ids.each do |ticket_id|
+      next if !Ticket.exists?(ticket_id)
+
       Ticket.find(ticket_id).escalation_calculation(true)
     end
   end
@@ -37,6 +39,7 @@ returns
 
   def escalation_calculation(force = false)
     return if !escalation_calculation_int(force)
+
     self.callback_loop = true
     save!
     self.callback_loop = false
@@ -51,6 +54,7 @@ returns
 
     # set escalation off if current state is not escalation relativ (e. g. ticket is closed)
     return if !state_id
+
     state = Ticket::State.lookup(id: state_id)
     escalation_disabled = false
     if state.ignore_escalation?
@@ -59,6 +63,7 @@ returns
       # early exit if nothing current state is not escalation relativ
       if !force
         return false if escalation_at.nil?
+
         self.escalation_at = nil
         if preferences['escalation_calculation']
           preferences['escalation_calculation']['escalation_disabled'] = escalation_disabled
@@ -79,6 +84,7 @@ returns
 
       # nothing to change
       return false if !escalation_at && !first_response_escalation_at && !update_escalation_at && !close_escalation_at
+
       preferences['escalation_calculation'] = {}
       self.escalation_at = nil
       self.first_response_escalation_at = nil
@@ -151,31 +157,13 @@ returns
     biz = Biz::Schedule.new do |config|
 
       # get business hours
-      hours = {}
-      calendar.business_hours.each do |day, meta|
-        next if !meta[:active]
-        next if !meta[:timeframes]
-        hours[day.to_sym] = {}
-        meta[:timeframes].each do |frame|
-          next if !frame[0]
-          next if !frame[1]
-          hours[day.to_sym][frame[0]] = frame[1]
-        end
-      end
+      hours = calendar.business_hours_to_hash
+      raise "No configured hours found in calendar #{calendar.inspect}" if hours.blank?
+
       config.hours = hours
-      if hours.blank?
-        raise "No configured hours found in calendar #{calendar.inspect}"
-      end
 
       # get holidays
-      holidays = []
-      calendar.public_holidays&.each do |day, meta|
-        next if !meta
-        next if !meta['active']
-        next if meta['removed']
-        holidays.push Date.parse(day)
-      end
-      config.holidays = holidays
+      config.holidays = calendar.public_holidays_to_array
       config.time_zone = calendar.timezone
     end
 
@@ -259,12 +247,12 @@ returns
 
     # remember already counted time to do on next update only the diff
     preferences[:escalation_calculation] = {
-      first_response_at: first_response_at,
-      last_update_at: last_update_at,
-      close_at: close_at,
-      sla_id: sla.id,
-      sla_updated_at: sla.updated_at,
-      calendar_id: calendar.id,
+      first_response_at:   first_response_at,
+      last_update_at:      last_update_at,
+      close_at:            close_at,
+      sla_id:              sla.id,
+      sla_updated_at:      sla.updated_at,
+      calendar_id:         calendar.id,
       calendar_updated_at: calendar.updated_at,
       escalation_disabled: escalation_disabled,
     }
@@ -298,6 +286,7 @@ returns
         query_condition, bind_condition, tables = Ticket.selector2sql(sla.condition)
         ticket = Ticket.where(query_condition, *bind_condition).joins(tables).find_by(id: id)
         next if !ticket
+
         sla_selected = sla
         break
       end
@@ -356,6 +345,7 @@ returns
         next if !history_item['attribute']
         next if history_item['attribute'] != 'state'
         next if history_item['id']
+
         last_history_state = history_item
       end
       local_updated_at = updated_at
@@ -363,10 +353,10 @@ returns
         local_updated_at = saved_change_to_attribute('updated_at')[1]
       end
       history_item = {
-        'attribute' => 'state',
+        'attribute'  => 'state',
         'created_at' => local_updated_at,
         'value_from' => Ticket::State.find(saved_change_to_attribute('state_id')[0]).name,
-        'value_to' => Ticket::State.find(saved_change_to_attribute('state_id')[1]).name,
+        'value_to'   => Ticket::State.find(saved_change_to_attribute('state_id')[1]).name,
       }
       if last_history_state
         last_history_state = history_item

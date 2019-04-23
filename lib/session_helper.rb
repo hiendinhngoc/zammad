@@ -5,7 +5,7 @@ module SessionHelper
     default_collection = {}
 
     # load collections to deliver from external files
-    dir = File.expand_path('../../', __FILE__)
+    dir = File.expand_path('..', __dir__)
     files = Dir.glob( "#{dir}/app/controllers/sessions/collection_*.rb")
     files.each do |file|
       load file
@@ -40,12 +40,13 @@ module SessionHelper
   end
 
   def self.list(limit = 10_000)
-    ActiveRecord::SessionStore::Session.order('updated_at DESC').limit(limit)
+    ActiveRecord::SessionStore::Session.order(updated_at: :desc).limit(limit)
   end
 
   def self.destroy(id)
     session = ActiveRecord::SessionStore::Session.find_by(id: id)
     return if !session
+
     session.destroy
   end
 end

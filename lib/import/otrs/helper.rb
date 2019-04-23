@@ -1,7 +1,6 @@
 module Import
   module OTRS
     module Helper
-      # rubocop:disable Style/ModuleFunction
       extend self
 
       private
@@ -13,6 +12,7 @@ module Import
         self.class::MAPPING.each do |key_sym, value|
           key = key_sym.to_s
           next if !record.key?(key)
+
           result[value] = record[key]
         end
         result

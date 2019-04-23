@@ -69,12 +69,15 @@ class App.Model extends Spine.Model
       return @login
     return '???'
 
+  # shows the icon representing the object itself (e. g. the organization icon in organization profile or ticket sidebar)
   icon: (user) ->
     ''
 
+  # shows icons in a list of objects (e. g. the traffic light rings in the ticket list in user profile)
   iconTitle: (user) ->
     ''
 
+  # shows icons in the activity stream (e. g. show ! if the activity stream icon is belonging to the session user)
   iconActivity: (user) ->
     ''
 
@@ -124,13 +127,13 @@ class App.Model extends Spine.Model
           if parts[0] && !parts[1]
 
             # key exists not in hash || value is '' || value is undefined
-            if !( attributeName of data['params'] ) || data['params'][attributeName] is '' || data['params'][attributeName] is undefined
+            if !( attributeName of data['params'] ) || data['params'][attributeName] is '' || data['params'][attributeName] is undefined || data['params'][attributeName] is null
               errors[attributeName] = 'is required'
 
           else if parts[0] && parts[1] && !parts[2]
 
             # key exists not in hash || value is '' || value is undefined
-            if !data.params[parts[0]] || !( parts[1] of data.params[parts[0]] ) || data.params[parts[0]][parts[1]] is '' || data.params[parts[0]][parts[1]] is undefined
+            if !data.params[parts[0]] || !( parts[1] of data.params[parts[0]] ) || data.params[parts[0]][parts[1]] is '' || data.params[parts[0]][parts[1]] is undefined || data.params[parts[0]][parts[1]] is null
               errors[attributeName] = 'is required'
 
           else
@@ -237,8 +240,8 @@ set new attributes of model (remove already available attributes)
     attributesNew = {}
     if screen
       for attribute in attributes
-        if attribute && attribute.screen && attribute.screen[ screen ] && !_.isEmpty(attribute.screen[ screen ])
-          for item, value of attribute.screen[ screen ]
+        if attribute && attribute.screen && attribute.screen[screen] && (!_.isEmpty(attribute.screen[screen]) && (attribute.screen[screen].shown is true || attribute.screen[screen].shown is undefined))
+          for item, value of attribute.screen[screen]
             attribute[item] = value
           attributesNew[ attribute.name ] = attribute
 
@@ -273,11 +276,11 @@ set new attributes of model (remove already available attributes)
     # subscribe and reload data / fetch new data if triggered
     subscribeId = undefined
     if bind
-      subscribeId = App[ @className ].subscribeItem(id, callback)
+      subscribeId = App[@className].subscribeItem(id, callback)
 
     # execute if object already exists
-    if !force && App[ @className ].exists(id)
-      data = App[ @className ].find(id)
+    if !force && App[@className].exists(id)
+      data = App[@className].find(id)
       data = @_fillUp(data)
       if callback
         callback(data, 'full')
@@ -302,27 +305,28 @@ set new attributes of model (remove already available attributes)
         url:   url
         processData: true,
         success: (data, status, xhr) =>
-          @FULL_FETCH[ data.id ] = false
+          @FULL_FETCH[id] = false
 
           App.Log.debug('Model', "got #{@className}.find(#{id}) from server", data)
 
           # full / load assets
           if data.assets
-            App.Collection.loadAssets(data.assets)
+            App.Collection.loadAssets(data.assets, targetModel: @className)
 
           # find / load object
           else
-            App[ @className ].refresh(data)
+            App[@className].refresh(data)
 
           # execute callbacks
-          if @FULL_CALLBACK[ data.id ]
-            for key, callback of @FULL_CALLBACK[ data.id ]
-              callback( @_fillUp( App[ @className ].find(data.id) ) )
-              delete @FULL_CALLBACK[ data.id ][ key ]
-            if _.isEmpty @FULL_CALLBACK[ data.id ]
-              delete @FULL_CALLBACK[ data.id ]
+          if @FULL_CALLBACK[data.id]
+            for key, callback of @FULL_CALLBACK[data.id]
+              callback( @_fillUp( App[@className].find(data.id) ) )
+              delete @FULL_CALLBACK[data.id][key]
+            if _.isEmpty @FULL_CALLBACK[data.id]
+              delete @FULL_CALLBACK[data.id]
 
-        error: (xhr, statusText, error) ->
+        error: (xhr, statusText, error) =>
+          @FULL_FETCH[id] = false
           App.Log.error('Model', statusText, error, url)
       )
     subscribeId
@@ -392,7 +396,7 @@ set new attributes of model (remove already available attributes)
               ->
               clear: true
             )
-          App.Delay.set(callback, 200, "full-#{@className}")
+          App.Delay.set(callback, 200, "fullcollection-#{@className}", "model-#{@className}")
 
         "Collection::Subscribe::#{@className}"
       )
@@ -405,10 +409,12 @@ set new attributes of model (remove already available attributes)
       clear = true
       if param.clear is true || param.clear is false
         clear = param.clear
-      if !@initFetchActive
+      if !@initFetchActives && @count() is 0
         @initFetchActive = true
-        @one 'refresh', (collection) ->
+        @one('refresh', (collection) =>
+          @initFetchActive = false
           callback(collection)
+        )
         @fetchFull(
           ->
           clear: clear
@@ -455,8 +461,8 @@ set new attributes of model (remove already available attributes)
             items = [items]
           App.Log.debug('Model', "local change #{@className}", items)
           for item in items
-            for key, callback of App[ @className ].SUBSCRIPTION_ITEM[ item.id ]
-              callback(App[ @className ]._fillUp(item), 'change')
+            for key, callback of App[@className].SUBSCRIPTION_ITEM[ item.id ]
+              callback(App[@className]._fillUp(item), 'change')
       )
       @bind(
         'destroy'
@@ -467,8 +473,8 @@ set new attributes of model (remove already available attributes)
             items = [items]
           App.Log.debug('Model', "local destroy #{@className}", items)
           for item in items
-            for key, callback of App[ @className ].SUBSCRIPTION_ITEM[ item.id ]
-              callback(App[ @className ]._fillUp(item), 'destroy')
+            for key, callback of App[@className].SUBSCRIPTION_ITEM[ item.id ]
+              callback(App[@className]._fillUp(item), 'destroy')
       )
 
       @changeTable = {}
@@ -481,7 +487,7 @@ set new attributes of model (remove already available attributes)
             items = [items]
           App.Log.debug('Model', "local refresh #{@className}", items)
           for item in items
-            for key, callback of App[ @className ].SUBSCRIPTION_ITEM[ item.id ]
+            for key, callback of App[@className].SUBSCRIPTION_ITEM[ item.id ]
 
               # only trigger callbacks if object has changed
               if !@changeTable[key] || @changeTable[key] < item.updated_at
@@ -498,12 +504,12 @@ set new attributes of model (remove already available attributes)
           App.Log.debug('Model', "server change on #{@className}.find(#{item.id}) #{item.updated_at}")
           callback = =>
             genericObject = undefined
-            if App[ @className ].exists(item.id)
-              genericObject = App[ @className ].find(item.id)
+            if App[@className].exists(item.id)
+              genericObject = App[@className].find(item.id)
             if !genericObject || new Date(item.updated_at) > new Date(genericObject.updated_at)
               App.Log.debug('Model', "request #{@className}.find(#{item.id}) from server")
               @full(item.id, false, true)
-          App.Delay.set(callback, 600, item.id, "full-#{@className}-#{item.id}")
+          App.Delay.set(callback, 600, "full-#{item.id}", "model-#{@className}")
         "Item::Subscribe::#{@className}"
       )
 
@@ -512,12 +518,12 @@ set new attributes of model (remove already available attributes)
         events
         (item) =>
           return if !@SUBSCRIPTION_ITEM || !@SUBSCRIPTION_ITEM[ item.id ]
-          return if !App[ @className ].exists(item.id)
-          genericObject = App[ @className ].find(item.id)
+          return if !App[@className].exists(item.id)
+          genericObject = App[@className].find(item.id)
           App.Log.debug('Model', "server delete on #{@className}.find(#{item.id}) #{item.updated_at}")
           callback = ->
             genericObject.trigger('destroy', genericObject)
-          App.Delay.set(callback, 500, item.id, "delete-#{@className}-#{item.id}")
+          App.Delay.set(callback, 500, "delete-#{item.id}", "model-#{@className}")
         "Item::SubscribeDelete::#{@className}"
       )
 
@@ -565,16 +571,30 @@ set new attributes of model (remove already available attributes)
   @fetchFull: (callback, params = {}) ->
     url = "#{@url}/?full=true"
     App.Log.debug('Model', "fetchFull collection #{@className}", url)
+
+    # request already active, queue callback
+    queueManagerName = "#{@className}::fetchFull"
     if params.force is false && App[@className].count() isnt 0
       if callback
-        callback(App[@className].all())
+        localCallback = =>
+          callback(App[@className].all(), 'full')
+        App.QueueManager.add(queueManagerName, localCallback)
+        App.QueueManager.run(queueManagerName)
       return
 
+    if callback
+      localCallback = =>
+        callback(App[@className].all())
+      App.QueueManager.add(queueManagerName, localCallback)
+
+    return if @fetchFullActive && @fetchFullActive > new Date().getTime() - 500
+    @fetchFullActive = new Date().getTime()
     App.Ajax.request(
       type:  'GET'
       url:   url
       processData: true,
       success: (data, status, xhr) =>
+        @fetchFullActive = false
 
         App.Log.debug('Model', "got fetchFull collection #{@className}", data)
 
@@ -584,7 +604,7 @@ set new attributes of model (remove already available attributes)
 
         # full / load assets
         if data.assets
-          App.Collection.loadAssets(data.assets)
+          App.Collection.loadAssets(data.assets, targetModel: @className)
 
           # in case of no record_ids are there, no inital render is fired
           if data.record_ids && _.isEmpty(data.record_ids)
@@ -594,10 +614,10 @@ set new attributes of model (remove already available attributes)
         else
           App[@className].refresh(data)
 
-        if callback
-          callback(data)
+        App.QueueManager.run(queueManagerName)
 
-      error: (xhr, statusText, error) ->
+      error: (xhr, statusText, error) =>
+        @fetchFullActive = false
         App.Log.error('Model', statusText, error, url)
     )
 
@@ -816,6 +836,8 @@ set new attributes of model (remove already available attributes)
     )
 
   @clearInMemory: ->
+    App.Delay.clearLevel("model-#{@className}")
+
     # reset callbacks to session based functions
     @resetCallbacks()
 
@@ -852,5 +874,7 @@ set new attributes of model (remove already available attributes)
     @configure_attributes = $.extend(true, [], @org_configure_attributes)
 
   @resetCallbacks: ->
-    @SUBSCRIPTION_ITEM = {}
-    @SUBSCRIPTION_COLLECTION = {}
+    if @SUBSCRIPTION_ITEM
+      @SUBSCRIPTION_ITEM = {}
+    if @SUBSCRIPTION_COLLECTION
+      @SUBSCRIPTION_COLLECTION = {}

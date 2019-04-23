@@ -7,8 +7,8 @@ class Setting < ApplicationModel
   store         :preferences
   before_create :state_check, :set_initial, :check_broadcast
   before_update :state_check, :check_broadcast
-  after_create  :reset_change_id
-  after_update  :reset_change_id
+  after_create  :reset_change_id, :reset_cache
+  after_update  :reset_change_id, :reset_cache
 
   attr_accessor :state
 
@@ -36,9 +36,11 @@ set config setting
     if !setting
       raise "Can't find config setting '#{name}'"
     end
+
     setting.state_current = { value: value }
     setting.save!
     logger.info "Setting.set('#{name}', #{value.inspect})"
+    true
   end
 
 =begin
@@ -51,7 +53,7 @@ get config setting
 
   def self.get(name)
     load
-    @@current[name]
+    @@current[name].deep_dup # prevents accidental modification of settings in console
   end
 
 =begin
@@ -70,9 +72,11 @@ reset config setting to default
       raise "Can't find config setting '#{name}'"
     end
     return true if !force && setting.state_current == setting.state_initial
+
     setting.state_current = setting.state_initial
     setting.save!
     logger.info "Setting.reset('#{name}', #{setting.state_current.inspect})"
+    true
   end
 
 =begin
@@ -123,7 +127,7 @@ reload config settings
     end
 
     @@change_id = Cache.get('Setting::ChangeId') # rubocop:disable Style/ClassVars
-    @@lookup_at = Time.zone.now # rubocop:disable Style/ClassVars
+    @@lookup_at = Time.now.to_i # rubocop:disable Style/ClassVars
     true
   end
   private_class_method :load
@@ -137,21 +141,31 @@ reload config settings
   def reset_change_id
     @@current[name] = state_current[:value]
     change_id = rand(999_999_999).to_s
-    logger.debug "Setting.reset_change_id: set new cache, #{change_id}"
+    logger.debug { "Setting.reset_change_id: set new cache, #{change_id}" }
     Cache.write('Setting::ChangeId', change_id, { expires_in: 24.hours })
     @@lookup_at = nil # rubocop:disable Style/ClassVars
     true
   end
 
+  def reset_cache
+    return true if preferences[:cache].blank?
+
+    preferences[:cache].each do |key|
+      Cache.delete(key)
+    end
+    true
+  end
+
   # check if cache is still valid
   def self.cache_valid?
-    if @@lookup_at && @@lookup_at > Time.zone.now - @@lookup_timeout
+    if @@lookup_at && @@lookup_at > Time.now.to_i - @@lookup_timeout
       #logger.debug "Setting.cache_valid?: cache_id has been set within last #{@@lookup_timeout} seconds"
       return true
     end
+
     change_id = Cache.get('Setting::ChangeId')
-    if change_id == @@change_id
-      @@lookup_at = Time.zone.now # rubocop:disable Style/ClassVars
+    if @@change_id && change_id == @@change_id
+      @@lookup_at = Time.now.to_i # rubocop:disable Style/ClassVars
       #logger.debug "Setting.cache_valid?: cache still valid, #{@@change_id}/#{change_id}"
       return true
     end
@@ -163,7 +177,8 @@ reload config settings
   # convert state into hash to be able to store it as store
   def state_check
     return true if !state
-    return true if state && state.respond_to?('has_key?') && state.key?(:value)
+    return true if state.try(:key?, :value)
+
     self.state_current = { value: state }
     true
   end
@@ -171,6 +186,7 @@ reload config settings
   # notify clients about public config changes
   def check_broadcast
     return true if frontend != true
+
     value = state_current
     if state_current.key?(:value)
       value = state_current[:value]
@@ -178,7 +194,7 @@ reload config settings
     Sessions.broadcast(
       {
         event: 'config_update',
-        data: { name: name, value: value }
+        data:  { name: name, value: value }
       },
       'public'
     )

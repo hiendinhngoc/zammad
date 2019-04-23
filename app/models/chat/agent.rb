@@ -14,6 +14,7 @@ class Chat::Agent < ApplicationModel
     )
     if state.nil?
       return false if !chat_agent
+
       return chat_agent.active
     end
     if chat_agent
@@ -22,7 +23,7 @@ class Chat::Agent < ApplicationModel
       chat_agent.save
     else
       Chat::Agent.create(
-        active: state,
+        active:        state,
         updated_by_id: user_id,
         created_by_id: user_id,
       )

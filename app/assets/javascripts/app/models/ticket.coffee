@@ -1,5 +1,5 @@
 class App.Ticket extends App.Model
-  @configure 'Ticket', 'number', 'title', 'group_id', 'owner_id', 'customer_id', 'state_id', 'priority_id', 'article', 'tags', 'links', 'updated_at'
+  @configure 'Ticket', 'number', 'title', 'group_id', 'owner_id', 'customer_id', 'state_id', 'priority_id', 'article', 'tags', 'links', 'updated_at', 'preferences'
   @extend Spine.Model.Ajax
   @url: @apiPath + '/tickets'
   @configure_attributes = [
@@ -11,8 +11,9 @@ class App.Ticket extends App.Model
       { name: 'owner_id',                 display: 'Owner',        tag: 'select',   multiple: false, limit: 100, null: true, relation: 'User', width: '12%', edit: true },
       { name: 'state_id',                 display: 'State',        tag: 'select',   multiple: false, null: false, relation: 'TicketState', default: 'new', width: '12%', edit: true, customer: true },
       { name: 'pending_time',             display: 'Pending till', tag: 'datetime', null: true, width: '130px' },
-      { name: 'priority_id',              display: 'Priority',     tag: 'select',   multiple: false, null: false, relation: 'TicketPriority', default: '2 normal', width: '12%', edit: true, customer: true },
+      { name: 'priority_id',              display: 'Priority',     tag: 'select',   multiple: false, null: false, relation: 'TicketPriority', default: '2 normal', width: '54px', edit: true, customer: true },
       { name: 'article_count',            display: 'Article#',     readonly: 1, width: '12%' },
+      { name: 'time_unit',                display: 'Accounted Time',          readonly: 1, width: '12%' },
       { name: 'escalation_at',            display: 'Escalation',              tag: 'datetime', null: true, readonly: 1, width: '110px', class: 'escalation' },
       { name: 'last_contact_at',          display: 'Last contact',            tag: 'datetime', null: true, readonly: 1, width: '110px' },
       { name: 'last_contact_agent_at',    display: 'Last contact (agent)',    tag: 'datetime', null: true, readonly: 1, width: '110px' },
@@ -28,9 +29,25 @@ class App.Ticket extends App.Model
   uiUrl: ->
     "#ticket/zoom/#{@id}"
 
+  priorityIcon: ->
+    priority = App.TicketPriority.findNative(@priority_id)
+    return '' if !priority
+    return '' if !priority.ui_icon
+    return '' if !priority.ui_color
+    App.Utils.icon(priority.ui_icon, "u-#{priority.ui_color}-color")
+
+  priorityClass: ->
+    priority = App.TicketPriority.findNative(@priority_id)
+    return '' if !priority
+    return '' if !priority.ui_color
+    "item--#{priority.ui_color}"
+
+  rowClass: ->
+    @priorityClass()
+
   getState: ->
-    type = App.TicketState.find(@state_id)
-    stateType = App.TicketStateType.find(type.state_type_id)
+    type = App.TicketState.findNative(@state_id)
+    stateType = App.TicketStateType.findNative(type.state_type_id)
     state = 'closed'
     if stateType.name is 'new' || stateType.name is 'open'
       state = 'open'
@@ -55,8 +72,8 @@ class App.Ticket extends App.Model
     @getState()
 
   iconTitle: ->
-    type = App.TicketState.find(@state_id)
-    stateType = App.TicketStateType.find(type.state_type_id)
+    type = App.TicketState.findNative(@state_id)
+    stateType = App.TicketStateType.findNative(type.state_type_id)
     if stateType.name is 'pending reminder' && @pending_time && new Date( Date.parse(@pending_time) ) < new Date
       return "#{App.i18n.translateInline(type.displayName())} - #{App.i18n.translateInline('reached')}"
     if @escalation_at && new Date( Date.parse(@escalation_at) ) < new Date
@@ -246,10 +263,10 @@ class App.Ticket extends App.Model
     result
 
   editable: (permission = 'change') ->
-    user_id = App.Session.get('id')
-    return true if user_id is @customer_id
-    return false if !App.User.exists(user_id)
-    group_ids = App.User.find(user_id).all_group_ids(permission)
+    user = App.User.current()
+    return false if !user?
+    return true if user.id is @customer_id
+    group_ids = user.allGroupIds(permission)
     for local_group_id in group_ids
       if local_group_id.toString() is @group_id.toString()
         return true

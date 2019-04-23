@@ -1,4 +1,4 @@
-require 'sequencer/unit/import/common/model/statistics/mixin/common'
+require_dependency 'sequencer/unit/import/common/model/statistics/mixin/common'
 
 class Sequencer
   class Unit
@@ -19,6 +19,7 @@ class Sequencer
 
                 def diff
                   raise "Unknown action '#{action}'" if !possible?
+
                   empty_diff.merge(
                     action => 1,
                     sum: 1,

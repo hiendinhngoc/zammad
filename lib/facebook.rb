@@ -1,7 +1,5 @@
 # Copyright (C) 2012-2015 Zammad Foundation, http://zammad-foundation.org/
 
-require 'koala'
-
 class Facebook
 
   attr_accessor :client, :account
@@ -38,6 +36,7 @@ disconnect client
 
   def disconnect
     return if !@client
+
     @client = nil
   end
 
@@ -106,9 +105,11 @@ result
   def user(item)
     return if !item['from']
     return if !item['from']['id']
+
     cache_key = "FB:User:Lookup:#{item['from']['id']}"
     cache = Cache.get(cache_key)
     return cache if cache
+
     begin
       result = @client.get_object(item['from']['id'], fields: 'first_name,last_name,email')
     rescue
@@ -121,8 +122,8 @@ result
   end
 
   def to_user(item)
-    Rails.logger.debug 'Create user from item...'
-    Rails.logger.debug item.inspect
+    Rails.logger.debug { 'Create user from item...' }
+    Rails.logger.debug { item.inspect }
 
     # do item_user lookup
     item_user = user(item)
@@ -143,8 +144,10 @@ result
       # ignore if value is already set
       map.each do |target, source|
         next if user[target].present?
+
         new_value = tweet_user.send(source).to_s
         next if new_value.blank?
+
         user_data[target] = new_value
       end
       user.update!(user_data)
@@ -164,11 +167,11 @@ result
 
     if user_data[:image_source]
       avatar = Avatar.add(
-        object: 'User',
-        o_id: user.id,
-        url: user_data[:image_source],
-        source: 'facebook',
-        deletable: true,
+        object:        'User',
+        o_id:          user.id,
+        url:           user_data[:image_source],
+        source:        'facebook',
+        deletable:     true,
         updated_by_id: user.id,
         created_by_id: user.id,
       )
@@ -196,9 +199,9 @@ result
 
   def to_ticket(post, group_id, channel, page)
 
-    Rails.logger.debug 'Create ticket from post...'
-    Rails.logger.debug post.inspect
-    Rails.logger.debug group_id.inspect
+    Rails.logger.debug { 'Create ticket from post...' }
+    Rails.logger.debug { post.inspect }
+    Rails.logger.debug { group_id.inspect }
 
     user = to_user(post)
     return if !user
@@ -217,9 +220,9 @@ result
       state:       state,
       priority:    Ticket::Priority.find_by(name: '2 normal'),
       preferences: {
-        channel_id: channel.id,
+        channel_id:           channel.id,
         channel_fb_object_id: page['id'],
-        facebook: {
+        facebook:             {
           permalink_url: post['permalink_url'],
         }
       },
@@ -228,9 +231,9 @@ result
 
   def to_article(post, ticket, page)
 
-    Rails.logger.debug 'Create article from post...'
-    Rails.logger.debug post.inspect
-    Rails.logger.debug ticket.inspect
+    Rails.logger.debug { 'Create article from post...' }
+    Rails.logger.debug { post.inspect }
+    Rails.logger.debug { ticket.inspect }
 
     user = to_user(post)
     return if !user
@@ -286,21 +289,21 @@ result
         end
         links = [
           {
-            url: url,
+            url:    url,
             target: '_blank',
-            name: 'on Facebook',
+            name:   'on Facebook',
           },
         ]
       end
 
       article = {
         #to:        @account['name'],
-        ticket_id: ticket.id,
-        internal:  false,
-        sender_id: Ticket::Article::Sender.lookup(name: 'Customer').id,
+        ticket_id:     ticket.id,
+        internal:      false,
+        sender_id:     Ticket::Article::Sender.lookup(name: 'Customer').id,
         created_by_id: 1,
         updated_by_id: 1,
-        preferences: {
+        preferences:   {
           links: links,
         },
       }.merge(article)
@@ -309,8 +312,9 @@ result
   end
 
   def to_group(post, group_id, channel, page)
-    Rails.logger.debug 'import post'
+    Rails.logger.debug { 'import post' }
     return if !post['message']
+
     ticket = nil
 
     # use transaction
@@ -332,9 +336,10 @@ result
     if article[:type] != 'facebook feed comment'
       raise "Can't handle unknown facebook article type '#{article[:type]}'."
     end
-    Rails.logger.debug 'Create feed comment from article...'
+
+    Rails.logger.debug { 'Create feed comment from article...' }
     post = @client.put_comment(article[:in_reply_to], article[:body])
-    Rails.logger.debug post.inspect
+    Rails.logger.debug { post.inspect }
     @client.get_object(post['id'])
   end
 
@@ -354,6 +359,7 @@ result
     return state if !ticket
 
     return ticket.state if ticket.state_id == state.id
+
     Ticket::State.find_by(default_follow_up: true)
   end
 
@@ -363,6 +369,7 @@ result
       next if !lookup[:page_id] && !lookup[:page]
       next if lookup[:page_id] && lookup[:page_id].to_s != page[:id]
       next if lookup[:page] && lookup[:page] != page[:name]
+
       access_token = page[:access_token]
       break
     end
@@ -371,8 +378,8 @@ result
 
   def nested_comments(comments, in_reply_to)
 
-    Rails.logger.debug 'Fetching nested comments...'
-    Rails.logger.debug comments.inspect
+    Rails.logger.debug { 'Fetching nested comments...' }
+    Rails.logger.debug { comments.inspect }
 
     result = []
     return result if comments.blank?
@@ -380,6 +387,7 @@ result
     comments.each do |comment|
       user = to_user(comment)
       next if !user
+
       article_data = {
         from:        "#{user.firstname} #{user.lastname}",
         body:        comment['message'],

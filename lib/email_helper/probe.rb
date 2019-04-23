@@ -54,7 +54,7 @@ returns on fail
 
       if !user || !domain
         return {
-          result: 'invalid',
+          result:   'invalid',
           messages: {
             email: 'Invalid email.'
           },
@@ -79,21 +79,21 @@ returns on fail
           end
 
           # probe inbound
-          Rails.logger.debug "INBOUND PROBE PROVIDER: #{settings[:inbound].inspect}"
+          Rails.logger.debug { "INBOUND PROBE PROVIDER: #{settings[:inbound].inspect}" }
           result_inbound = EmailHelper::Probe.inbound(settings[:inbound])
-          Rails.logger.debug "INBOUND RESULT PROVIDER: #{result_inbound.inspect}"
+          Rails.logger.debug { "INBOUND RESULT PROVIDER: #{result_inbound.inspect}" }
           next if result_inbound[:result] != 'ok'
 
           # probe outbound
-          Rails.logger.debug "OUTBOUND PROBE PROVIDER: #{settings[:outbound].inspect}"
+          Rails.logger.debug { "OUTBOUND PROBE PROVIDER: #{settings[:outbound].inspect}" }
           result_outbound = EmailHelper::Probe.outbound(settings[:outbound], params[:email])
-          Rails.logger.debug "OUTBOUND RESULT PROVIDER: #{result_outbound.inspect}"
+          Rails.logger.debug { "OUTBOUND RESULT PROVIDER: #{result_outbound.inspect}" }
           next if result_outbound[:result] != 'ok'
 
           return {
-            result: 'ok',
+            result:           'ok',
             content_messages: result_inbound[:content_messages],
-            setting: settings,
+            setting:          settings,
           }
         end
       end
@@ -105,7 +105,7 @@ returns on fail
       inbound_guess = EmailHelper.provider_inbound_guess(user, params[:email], params[:password], domain)
       inbound_map = inbound_mx + inbound_guess
       result = {
-        result: 'ok',
+        result:  'ok',
         setting: {}
       }
       success = false
@@ -116,9 +116,9 @@ returns on fail
           config[:options][:folder] = params[:folder]
         end
 
-        Rails.logger.debug "INBOUND PROBE GUESS: #{config.inspect}"
+        Rails.logger.debug { "INBOUND PROBE GUESS: #{config.inspect}" }
         result_inbound = EmailHelper::Probe.inbound(config)
-        Rails.logger.debug "INBOUND RESULT GUESS: #{result_inbound.inspect}"
+        Rails.logger.debug { "INBOUND RESULT GUESS: #{result_inbound.inspect}" }
 
         next if result_inbound[:result] != 'ok'
 
@@ -144,9 +144,9 @@ returns on fail
 
       success = false
       outbound_map.each do |config|
-        Rails.logger.debug "OUTBOUND PROBE GUESS: #{config.inspect}"
+        Rails.logger.debug { "OUTBOUND PROBE GUESS: #{config.inspect}" }
         result_outbound = EmailHelper::Probe.outbound(config, params[:email])
-        Rails.logger.debug "OUTBOUND RESULT GUESS: #{result_outbound.inspect}"
+        Rails.logger.debug { "OUTBOUND RESULT GUESS: #{result_outbound.inspect}" }
 
         next if result_outbound[:result] != 'ok'
 
@@ -213,7 +213,7 @@ returns on fail
       # validate adapter
       if !EmailHelper.available_driver[:inbound][adapter.to_sym]
         return {
-          result: 'failed',
+          result:  'failed',
           message: "Unknown adapter '#{adapter}'",
         }
       end
@@ -221,16 +221,16 @@ returns on fail
       # connection test
       result_inbound = {}
       begin
-        require "channel/driver/#{adapter.to_filename}"
+        require_dependency "channel/driver/#{adapter.to_filename}"
 
-        driver_class    = Object.const_get("Channel::Driver::#{adapter.to_classname}")
+        driver_class    = "Channel::Driver::#{adapter.to_classname}".constantize
         driver_instance = driver_class.new
         result_inbound  = driver_instance.fetch(params[:options], nil, 'check')
       rescue => e
         return {
-          result: 'invalid',
-          settings: params,
-          message: e.message,
+          result:        'invalid',
+          settings:      params,
+          message:       e.message,
           message_human: translation(e.message),
           invalid_field: invalid_field(e.message),
         }
@@ -287,7 +287,7 @@ returns on fail
       # validate adapter
       if !EmailHelper.available_driver[:outbound][adapter.to_sym]
         return {
-          result: 'failed',
+          result:  'failed',
           message: "Unknown adapter '#{adapter}'",
         }
       end
@@ -308,10 +308,13 @@ returns on fail
                  body:    "This is a Test Email of Zammad to verify if Zammad can send emails to an external address.\n\nIf you see this email, you can ignore and delete it.",
                }
              end
-      if subject
+      if subject.present?
         mail['X-Zammad-Test-Message'] = subject
       end
       mail['X-Zammad-Ignore']          = 'true'
+      mail['X-Zammad-Fqdn']            = Setting.get('fqdn')
+      mail['X-Zammad-Verify']          = 'true'
+      mail['X-Zammad-Verify-Time']     = Time.zone.now.iso8601
       mail['X-Loop']                   = 'yes'
       mail['Precedence']               = 'bulk'
       mail['Auto-Submitted']           = 'auto-generated'
@@ -319,9 +322,9 @@ returns on fail
 
       # test connection
       begin
-        require "channel/driver/#{adapter.to_filename}"
+        require_dependency "channel/driver/#{adapter.to_filename}"
 
-        driver_class    = Object.const_get("Channel::Driver::#{adapter.to_classname}")
+        driver_class    = "Channel::Driver::#{adapter.to_classname}".constantize
         driver_instance = driver_class.new
         driver_instance.send(
           params[:options],
@@ -331,7 +334,7 @@ returns on fail
         # check if sending email was ok, but mailserver rejected
         if !subject
           white_map = {
-            'Recipient address rejected' => true,
+            'Recipient address rejected'                => true,
             'Sender address rejected: Domain not found' => true,
           }
           white_map.each_key do |key|
@@ -339,16 +342,16 @@ returns on fail
             next if e.message !~ /#{Regexp.escape(key)}/i
 
             return {
-              result: 'ok',
+              result:   'ok',
               settings: params,
-              notice: e.message,
+              notice:   e.message,
             }
           end
         end
         return {
-          result: 'invalid',
-          settings: params,
-          message: e.message,
+          result:        'invalid',
+          settings:      params,
+          message:       e.message,
           message_human: translation(e.message),
           invalid_field: invalid_field(e.message),
         }

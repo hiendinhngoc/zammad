@@ -1,5 +1,4 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-
 require 'net/imap'
 
 class Channel::Driver::Imap < Channel::EmailParser
@@ -62,54 +61,73 @@ example
 
   def fetch(options, channel, check_type = '', verify_string = '')
     ssl            = true
+    starttls       = false
     port           = 993
     keep_on_server = false
     folder         = 'INBOX'
     if options[:keep_on_server] == true || options[:keep_on_server] == 'true'
       keep_on_server = true
     end
+
     if options.key?(:ssl) && options[:ssl] == false
       ssl  = false
       port = 143
     end
-    if options.key?(:port) && options[:port].present?
-      port = options[:port]
 
-      # disable ssl for non ssl ports
-      if port == 143 && !options.key?(:ssl)
-        ssl = false
-      end
+    port = if options.key?(:port) && options[:port].present?
+             options[:port].to_i
+           elsif ssl == true
+             993
+           else
+             143
+           end
+
+    if ssl == true && port != 993
+      ssl = false
+      starttls = true
     end
+
     if options[:folder].present?
       folder = options[:folder]
     end
 
-    Rails.logger.info "fetching imap (#{options[:host]}/#{options[:user]} port=#{port},ssl=#{ssl},folder=#{folder},keep_on_server=#{keep_on_server})"
+    Rails.logger.info "fetching imap (#{options[:host]}/#{options[:user]} port=#{port},ssl=#{ssl},starttls=#{starttls},folder=#{folder},keep_on_server=#{keep_on_server})"
 
     # on check, reduce open_timeout to have faster probing
-    timeout = 45
+    check_type_timeout = 45
     if check_type == 'check'
-      timeout = 6
+      check_type_timeout = 6
     end
 
-    Timeout.timeout(timeout) do
-      @imap = Net::IMAP.new(options[:host], port, ssl, nil, false)
+    timeout(check_type_timeout) do
+      @imap = ::Net::IMAP.new(options[:host], port, ssl, nil, false)
+      if starttls
+        @imap.starttls()
+      end
     end
 
-    @imap.login(options[:user], options[:password])
+    timeout(check_type_timeout) do
+      @imap.login(options[:user], options[:password])
+    end
 
-    # select folder
-    @imap.select(folder)
+    timeout(check_type_timeout) do
+      # select folder
+      @imap.select(folder)
+    end
 
     # sort messages by date on server (if not supported), if not fetch messages via search (first in, first out)
     filter = ['ALL']
     if keep_on_server && check_type != 'check' && check_type != 'verify'
       filter = %w[NOT SEEN]
     end
-    begin
-      message_ids = @imap.sort(['DATE'], filter, 'US-ASCII')
-    rescue
-      message_ids = @imap.search(filter)
+
+    message_ids = nil
+    timeout(6.minutes) do
+      begin
+        message_ids = @imap.sort(['DATE'], filter, 'US-ASCII')
+      rescue
+        message_ids = @imap.search(filter)
+      end
     end
 
     # check mode only
@@ -121,21 +139,25 @@ example
       # check messages
       message_ids.each do |message_id|
 
-        message_meta = @imap.fetch(message_id, ['RFC822.HEADER'])[0].attr
+        message_meta = nil
+        timeout(1.minute) do
+          message_meta = @imap.fetch(message_id, ['RFC822.HEADER'])[0].attr
+        end
 
         # check how many content messages we have, for notice used
-        header = message_meta['RFC822.HEADER']
-        if header && header !~ /x-zammad-ignore/i
-          content_messages += 1
-          break if content_max_check < content_messages
-        end
+        headers = parse_headers(message_meta['RFC822.HEADER'])
+        next if messages_is_verify_message?(headers)
+        next if messages_is_ignore_message?(headers)
+
+        content_messages += 1
+        break if content_max_check < content_messages
       end
       if content_messages >= content_max_check
         content_messages = message_ids.count
       end
       disconnect
       return {
-        result: 'ok',
+        result:           'ok',
         content_messages: content_messages,
       }
     end
@@ -148,15 +170,21 @@ example
       # check for verify message
       message_ids.each do |message_id|
 
-        message_meta = @imap.fetch(message_id, ['ENVELOPE'])[0].attr
+        message_meta = nil
+        timeout(1.minute) do
+          message_meta = @imap.fetch(message_id, ['ENVELOPE'])[0].attr
+        end
 
         # check if verify message exists
         subject = message_meta['ENVELOPE'].subject
         next if !subject
         next if subject !~ /#{verify_string}/
+
         Rails.logger.info " - verify email #{verify_string} found"
-        @imap.store(message_id, '+FLAGS', [:Deleted])
-        @imap.expunge()
+        timeout(600) do
+          @imap.store(message_id, '+FLAGS', [:Deleted])
+          @imap.expunge()
+        end
         disconnect
         return {
           result: 'ok',
@@ -178,7 +206,13 @@ example
       count += 1
       Rails.logger.info " - message #{count}/#{count_all}"
 
-      message_meta = @imap.fetch(message_id, ['RFC822.SIZE', 'ENVELOPE', 'FLAGS', 'INTERNALDATE'])[0]
+      message_meta = nil
+      timeout(1.minute) do
+        message_meta = @imap.fetch(message_id, ['RFC822.SIZE', 'ENVELOPE', 'FLAGS', 'INTERNALDATE', 'RFC822.HEADER'])[0]
+      end
+
+      # ignore verify messages
+      next if !messages_is_too_old_verify?(message_meta, count, count_all)
 
       # ignore to big messages
       info = too_big?(message_meta, count, count_all)
@@ -194,18 +228,28 @@ example
       next if already_imported?(message_id, message_meta, count, count_all, keep_on_server, channel)
 
       # delete email from server after article was created
-      msg = @imap.fetch(message_id, 'RFC822')[0].attr['RFC822']
+      msg = nil
+      timeout(1.minute) do
+        msg = @imap.fetch(message_id, 'RFC822')[0].attr['RFC822']
+      end
       next if !msg
+
       process(channel, msg, false)
-      if !keep_on_server
-        @imap.store(message_id, '+FLAGS', [:Deleted])
-      else
-        @imap.store(message_id, '+FLAGS', [:Seen])
+
+      timeout(1.minute) do
+        if !keep_on_server
+          @imap.store(message_id, '+FLAGS', [:Deleted])
+        else
+          @imap.store(message_id, '+FLAGS', [:Seen])
+        end
       end
       count_fetched += 1
     end
+
     if !keep_on_server
-      @imap.expunge()
+      timeout(10.minutes) do
+        @imap.expunge()
+      end
     end
     disconnect
     if count.zero?
@@ -213,15 +257,18 @@ example
     end
     Rails.logger.info 'done'
     {
-      result: 'ok',
+      result:  'ok',
       fetched: count_fetched,
-      notice: notice,
+      notice:  notice,
     }
   end
 
   def disconnect
     return if !@imap
-    @imap.disconnect()
+
+    timeout(1.minute) do
+      @imap.disconnect()
+    end
   end
 
 =begin
@@ -240,14 +287,60 @@ returns
 
   private
 
+  def messages_is_too_old_verify?(message_meta, count, count_all)
+    headers = parse_headers(message_meta.attr['RFC822.HEADER'])
+    return true if !messages_is_verify_message?(headers)
+    return true if headers['X-Zammad-Verify-Time'].blank?
+
+    begin
+      verify_time = Time.zone.parse(headers['X-Zammad-Verify-Time'])
+    rescue => e
+      Rails.logger.error e
+      return true
+    end
+    return true if verify_time < Time.zone.now - 30.minutes
+
+    Rails.logger.info "  - ignore message #{count}/#{count_all} - because message has a verify message"
+
+    false
+  end
+
+  def messages_is_verify_message?(headers)
+    return true if headers['X-Zammad-Verify'] == 'true'
+
+    false
+  end
+
+  def messages_is_ignore_message?(headers)
+    return true if headers['X-Zammad-Ignore'] == 'true'
+
+    false
+  end
+
+  def parse_headers(string)
+    return {} if string.blank?
+
+    headers = {}
+    headers_pairs = string.split("\r\n")
+    headers_pairs.each do |pair|
+      key_value = pair.split(': ')
+      next if key_value[0].blank?
+
+      headers[key_value[0]] = key_value[1]
+    end
+    headers
+  end
+
   # rubocop:disable Metrics/ParameterLists
   def already_imported?(message_id, message_meta, count, count_all, keep_on_server, channel)
     # rubocop:enable Metrics/ParameterLists
     return false if !keep_on_server
     return false if !message_meta.attr
     return false if !message_meta.attr['ENVELOPE']
+
     local_message_id = message_meta.attr['ENVELOPE'].message_id
     return false if local_message_id.blank?
+
     local_message_id_md5 = Digest::MD5.hexdigest(local_message_id)
     article = Ticket::Article.where(message_id_md5: local_message_id_md5).order('created_at DESC, id DESC').limit(1).first
     return false if !article
@@ -258,13 +351,16 @@ returns
       return false if ticket.preferences[:channel_id] != channel[:id]
     end
 
-    @imap.store(message_id, '+FLAGS', [:Seen])
+    timeout(1.minute) do
+      @imap.store(message_id, '+FLAGS', [:Seen])
+    end
     Rails.logger.info "  - ignore message #{count}/#{count_all} - because message message id already imported"
     true
   end
 
   def deleted?(message_meta, count, count_all)
     return false if !message_meta.attr['FLAGS'].include?(:Deleted)
+
     Rails.logger.info "  - ignore message #{count}/#{count_all} - because message has already delete flag"
     true
   end
@@ -278,6 +374,12 @@ returns
       return info
     end
     false
+  end
+
+  def timeout(seconds)
+    Timeout.timeout(seconds) do
+      yield
+    end
   end
 
 end

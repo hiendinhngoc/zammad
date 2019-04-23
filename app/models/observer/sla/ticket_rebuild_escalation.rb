@@ -3,15 +3,7 @@
 class Observer::Sla::TicketRebuildEscalation < ActiveRecord::Observer
   observe 'sla', 'calendar'
 
-  def after_create(record)
-    _rebuild(record)
-  end
-
-  def after_update(record)
-    _check(record)
-  end
-
-  def after_delete(record)
+  def after_commit(record)
     _rebuild(record)
   end
 
@@ -21,7 +13,7 @@ class Observer::Sla::TicketRebuildEscalation < ActiveRecord::Observer
     Cache.delete('SLA::List::Active')
 
     # send background job
-    Delayed::Job.enqueue( Observer::Sla::TicketRebuildEscalation::BackgroundJob.new(record.id) )
+    SlaTicketRebuildEscalationJob.perform_later(record.id)
   end
 
   def _check(record)
@@ -40,6 +32,7 @@ class Observer::Sla::TicketRebuildEscalation < ActiveRecord::Observer
     fields_to_check.each do |item|
       next if !record.saved_change_to_attribute(item)
       next if record.saved_change_to_attribute(item)[0] == record.saved_change_to_attribute(item)[1]
+
       changed = true
     end
     return true if !changed

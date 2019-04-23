@@ -1,7 +1,4 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-
-require 'mail'
-
 module Channel::EmailBuild
 
 =begin
@@ -40,6 +37,7 @@ module Channel::EmailBuild
       next if key.to_s == 'attachments'
       next if key.to_s == 'body'
       next if key.to_s == 'content_type'
+
       mail[key.to_s] = if value && value.class != Array
                          value.to_s
                        else
@@ -87,6 +85,7 @@ module Channel::EmailBuild
       attr[:attachments]&.each do |attachment|
         next if attachment.class == Hash
         next if attachment.preferences['Content-ID'].blank?
+
         attachment = Mail::Part.new do
           content_type attachment.preferences['Content-Type']
           content_id "<#{attachment.preferences['Content-ID']}>"
@@ -105,17 +104,18 @@ module Channel::EmailBuild
     attr[:attachments]&.each do |attachment|
       if attachment.class == Hash
         attachment['content-id'] = nil
-        mail.attachments[ attachment[:filename] ] = attachment
+        mail.attachments[attachment[:filename]] = attachment
       else
         next if attachment.preferences['Content-ID'].present?
+
         filename = attachment.filename
         encoded_filename = Mail::Encodings.decode_encode filename, :encode
         disposition = attachment.preferences['Content-Disposition'] || 'attachment'
-        content_type = attachment.preferences['Content-Type'] || 'application/octet-stream'
+        content_type = attachment.preferences['Content-Type'] || attachment.preferences['Mime-Type'] || 'application/octet-stream'
         mail.attachments[attachment.filename] = {
           content_disposition: "#{disposition}; filename=\"#{encoded_filename}\"",
-          content_type: "#{content_type}; filename=\"#{encoded_filename}\"",
-          content: attachment.content
+          content_type:        "#{content_type}; filename=\"#{encoded_filename}\"",
+          content:             attachment.content
         }
       end
     end
@@ -134,6 +134,7 @@ returns
 
   def self.recipient_line(realname, email)
     return "#{realname} <#{email}>" if realname.match?(/^[A-z]+$/i)
+
     "\"#{realname.gsub('"', '\"')}\" <#{email}>"
   end
 
@@ -152,9 +153,13 @@ Check if string is a complete html document. If not, add head and css styles.
 
     return html if html.match?(/<html>/i)
 
+    html_email_body = File.read(Rails.root.join('app', 'views', 'mailer', 'application_wrapper.html.erb').to_s)
+
+    html_email_body.gsub!('###html_email_css_font###', Setting.get('html_email_css_font'))
+
     # use block form because variable html could contain backslashes and e. g. '\1' that
     # must not be handled as back-references for regular expressions
-    Rails.configuration.html_email_body.sub('###html###') { html }
+    html_email_body.sub('###html###') { html }
   end
 
 =begin

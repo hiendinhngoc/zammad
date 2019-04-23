@@ -6,7 +6,7 @@ class App.UiElement.ApplicationUiElement
     # skip sorting if it is disabled by config
     return if attribute.sortBy == null
 
-    return if !attribute.options
+    return if _.isEmpty(attribute.options)
 
     # arrays can only get ordered
     if _.isArray(attribute.options)
@@ -43,7 +43,7 @@ class App.UiElement.ApplicationUiElement
       attribute.options[''] = '-'
 
   @getConfigOptionList: (attribute) ->
-    return if !attribute.options
+    return if _.isEmpty(attribute.options)
     selection = attribute.options
     attribute.options = []
     if _.isArray(selection)
@@ -52,10 +52,9 @@ class App.UiElement.ApplicationUiElement
           row.name = App.i18n.translateInline(row.name)
         attribute.options.push row
     else
-      order = _.sortBy(
-        _.keys(selection), (item) ->
-          selection[item].toString().toLowerCase()
-      )
+      forceString = (s) ->
+        return if !selection[s] || !selection[s].toString then '' else selection[s].toString()
+      order = _.keys(selection).sort( (a, b) -> forceString(a).localeCompare(forceString(b)) )
       for key in order
         name_new = selection[key]
         if attribute.translate
@@ -69,7 +68,7 @@ class App.UiElement.ApplicationUiElement
   @getRelationOptionList: (attribute, params) ->
 
     # build options list based on relation
-    return if !attribute.relation
+    return if _.isEmpty(attribute.relation)
     return if !App[attribute.relation]
 
     attribute.options = []
@@ -120,7 +119,7 @@ class App.UiElement.ApplicationUiElement
               list.push record
 
         # check if current value need to be added
-        if params[ attribute.name ]
+        if params[ attribute.name ] && !attribute.rejectNonExistentValues
           hit = false
           for value in list
             if value['id'].toString() is params[ attribute.name ].toString()
@@ -175,7 +174,7 @@ class App.UiElement.ApplicationUiElement
   # execute filter
   @filterOption: (attribute) ->
     return if !attribute.filter
-    return if !attribute.options
+    return if _.isEmpty(attribute.options)
 
     return if typeof attribute.filter isnt 'function'
     App.Log.debug 'ControllerForm', '_filterOption:filter-function'
@@ -218,10 +217,16 @@ class App.UiElement.ApplicationUiElement
     value = valueOrigin
     if value is null || value is undefined
       value = ''
+    recordValue = record.value
+    if recordValue is null || recordValue is undefined
+      recordValue = ''
+    recordName = record.name
+    if recordName is null || recordName is undefined
+      recordName = ''
     if typeof value is 'string' || typeof value is 'number' || typeof value is 'boolean'
-      if record.value.toString() is value.toString() || record.name.toString() is value.toString()
+      if recordValue.toString() is value.toString() || recordName.toString() is value.toString()
         return true
-    else if ( value && record.value && _.include(value, record.value) ) || ( value && record.name && _.include(value, record.name) )
+    else if ( value && recordValue && _.include(value, recordValue) ) || ( value && recordName && _.include(value, recordName) )
       return true
     false
 

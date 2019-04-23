@@ -3,13 +3,12 @@ module Import
     module DynamicFieldFactory
       extend Import::Factory
       extend Import::Helper
-
-      # rubocop:disable Style/ModuleFunction
       extend self
 
       def skip?(record, *_args)
         return true if skip_field?(record['Name'])
         return false if importable?(record)
+
         @skip_fields.push(record['Name'])
         true
       end
@@ -26,17 +25,20 @@ module Import
 
       def importable?(dynamic_field)
         return false if !supported_object_type?(dynamic_field)
+
         supported_field_type?(dynamic_field)
       end
 
       def supported_object_type?(dynamic_field)
         return true if dynamic_field['ObjectType'] == 'Ticket'
+
         log "ERROR: Unsupported dynamic field object type '#{dynamic_field['ObjectType']}' for dynamic field '#{dynamic_field['Name']}'"
         false
       end
 
       def supported_field_type?(dynamic_field)
         return true if supported_field_types.include?(dynamic_field['FieldType'])
+
         log "ERROR: Unsupported dynamic field field type '#{dynamic_field['FieldType']}' for dynamic field '#{dynamic_field['Name']}'"
         false
       end
@@ -47,6 +49,7 @@ module Import
 
       def skip_fields
         return @skip_fields if @skip_fields
+
         @skip_fields = %w[ProcessManagementProcessID ProcessManagementActivityID ZammadMigratorChanged ZammadMigratorChangedOld]
       end
     end

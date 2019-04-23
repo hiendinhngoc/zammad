@@ -41,10 +41,12 @@ returns:
       content_package = Base64.decode64(file['content'])
       content_fs      = self.class._read_file(file['location'])
       next if content_package == content_fs
+
       logger.error "File #{file['location']} is different"
       issues[file['location']] = 'changed'
     end
     return nil if issues.blank?
+
     issues
   end
 
@@ -59,6 +61,7 @@ install all packages located under auto_install/*.zpm
   def self.auto_install
     path = "#{@@root}/auto_install/"
     return if !File.exist?(path)
+
     data = []
     Dir.foreach(path) do |entry|
       if entry =~ /\.zpm/ && entry !~ /^\./
@@ -105,7 +108,8 @@ note: will not take down package migrations, use Package.unlink instead
     if package == false
       raise "Can't link package, '#{package_base_dir}' is no package source directory!"
     end
-    logger.debug package.inspect
+
+    logger.debug { package.inspect }
     package
   end
 
@@ -186,6 +190,7 @@ link files + execute migration up
         if File.exist?(backup_file)
           raise "Can't link #{entry} -> #{dest}, destination and .link_backup already exists!"
         end
+
         logger.info "Create backup file of #{dest} -> #{backup_file}."
         File.rename(dest.to_s, backup_file)
       end
@@ -229,10 +234,10 @@ returns
 
     # package meta data
     meta = {
-      name: package['name'],
-      version: package['version'],
-      vendor: package['vendor'],
-      state: 'uninstalled',
+      name:          package['name'],
+      version:       package['version'],
+      vendor:        package['vendor'],
+      state:         'uninstalled',
       created_by_id: 1,
       updated_by_id: 1,
     }
@@ -251,10 +256,10 @@ returns
 
       # uninstall files of old package
       uninstall(
-        name: package_db.name,
-        version: package_db.version,
+        name:               package_db.name,
+        version:            package_db.version,
         migration_not_down: true,
-        reinstall: data[:reinstall],
+        reinstall:          data[:reinstall],
       )
     end
 
@@ -262,11 +267,11 @@ returns
     if !data[:reinstall]
       package_db = Package.create(meta)
       Store.add(
-        object: 'Package',
-        o_id: package_db.id,
-        data: package.to_json,
-        filename: "#{meta[:name]}-#{meta[:version]}.zpm",
-        preferences: {},
+        object:        'Package',
+        o_id:          package_db.id,
+        data:          package.to_json,
+        filename:      "#{meta[:name]}-#{meta[:version]}.zpm",
+        preferences:   {},
         created_by_id: UserInfo.current_user_id || 1,
       )
     end
@@ -307,6 +312,7 @@ returns
     if !package
       raise "No such package '#{package_name}'"
     end
+
     file = _get_bin(package.name, package.version)
     install(string: file, reinstall: true)
     package
@@ -351,7 +357,7 @@ returns
     # delete package
     if !data[:reinstall]
       record = Package.find_by(
-        name: package['name'],
+        name:    package['name'],
         version: package['version'],
       )
       record.destroy
@@ -378,15 +384,16 @@ execute all pending package migrations at once
 
   def self._get_bin(name, version)
     package = Package.find_by(
-      name: name,
+      name:    name,
       version: version,
     )
     if !package
       raise "No such package '#{name}' version '#{version}'"
     end
+
     list = Store.list(
       object: 'Package',
-      o_id: package.id,
+      o_id:   package.id,
     )
 
     # find file
@@ -396,6 +403,7 @@ execute all pending package migrations at once
     if !list.first.content
       raise "No such file in storage #{name} #{version}"
     end
+
     list.first.content
   end
 
@@ -424,7 +432,7 @@ execute all pending package migrations at once
     if File.exist?(location)
       content_fs = _read_file(file)
       if content_fs == data
-        logger.debug "NOTICE: file '#{location}' already exists, skip install"
+        logger.debug { "NOTICE: file '#{location}' already exists, skip install" }
         return true
       end
       backup_location = location + '.save'
@@ -496,6 +504,7 @@ execute all pending package migrations at once
       location = "#{root}/db/addon/#{package.underscore}"
 
       return true if !File.exist?(location)
+
       migrations_done = Package::Migration.where(name: package.underscore)
 
       # get existing migrations
@@ -503,6 +512,7 @@ execute all pending package migrations at once
       Dir.foreach(location) do |entry|
         next if entry == '.'
         next if entry == '..'
+
         migrations_existing.push entry
       end
 
@@ -516,6 +526,7 @@ execute all pending package migrations at once
 
       migrations_existing.each do |migration|
         next if migration !~ /\.rb$/
+
         version = nil
         name    = nil
         if migration =~ /^(.+?)_(.*)\.rb$/
@@ -530,6 +541,7 @@ execute all pending package migrations at once
         done = Package::Migration.find_by(name: package.underscore, version: version)
         if direction == 'reverse'
           next if !done
+
           logger.info "NOTICE: down package migration '#{migration}'"
           load "#{location}/#{migration}"
           classname = name.camelcase
@@ -540,6 +552,7 @@ execute all pending package migrations at once
           # up
         else
           next if done
+
           logger.info "NOTICE: up package migration '#{migration}'"
           load "#{location}/#{migration}"
           classname = name.camelcase

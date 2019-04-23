@@ -6,13 +6,14 @@ module ExtraCollection
 
     item = StatsStore.search(
       object: 'User',
-      o_id: user.id,
-      key: 'dashboard',
+      o_id:   user.id,
+      key:    'dashboard',
     )
     return [collections, assets] if !item
+
     collections['StatsStore'] = [item]
 
     [collections, assets]
   end
-  module_function :session
+  module_function :session # rubocop:disable Style/AccessModifierDeclarations
 end

@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class AdminRoleTest < TestCase
@@ -9,7 +8,7 @@ class AdminRoleTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -22,11 +21,11 @@ class AdminRoleTest < TestCase
 
     user_create(
       data: {
-        login: login,
+        login:     login,
         firstname: firstname,
-        lastname: lastname,
-        email: email,
-        password: password,
+        lastname:  lastname,
+        email:     email,
+        password:  password,
       },
     )
 
@@ -35,45 +34,46 @@ class AdminRoleTest < TestCase
       data: {
         name:              name,
         default_at_signup: false,
-        permission: [
+        permission:        [
           'admin.group',
           'user_preferences.device',
         ],
-        member: [login],
+        member:            [login],
       }
     )
 
     logout()
+    # flanky
     login(
       username: email,
       password: password,
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
     click(css: 'a[href="#current_user"]')
     click(css: 'a[href="#profile"]')
     match(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Password',
     )
     match(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Language',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Notifications',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Calendar',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Token Access',
     )
     match(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Devices',
     )
 
@@ -81,7 +81,7 @@ class AdminRoleTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     role_edit(
       data: {
@@ -94,33 +94,33 @@ class AdminRoleTest < TestCase
     login(
       username: email,
       password: password,
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
     click(css: 'a[href="#current_user"]')
     click(css: 'a[href="#profile"]')
     match(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Password',
     )
     match(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Language',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Notifications',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Calendar',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Token Access',
     )
     match_not(
-      css: '.content .NavBarProfile',
+      css:   '.content .NavBarProfile',
       value: 'Devices',
     )
   end
@@ -132,7 +132,7 @@ class AdminRoleTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
 
     # check if admin exists
@@ -143,19 +143,19 @@ class AdminRoleTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
     role_edit(
       data: {
-        name:   'Agent',
-        active: true,
+        name:       'Agent',
+        active:     true,
         permission: {
-          'admin.user' => true,
-          'chat.agent' => true,
-          'cti.agent' => true,
-          'ticket.agent' => true,
+          'admin.user'       => true,
+          'chat.agent'       => true,
+          'cti.agent'        => true,
+          'ticket.agent'     => true,
           'user_preferences' => true,
         },
       }
@@ -166,7 +166,7 @@ class AdminRoleTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -187,9 +187,9 @@ class AdminRoleTest < TestCase
     ticket_create(
       data: {
         customer: user_email,
-        group: 'Users',
-        title: 'some changes',
-        body: 'some body 123äöü - admin.user',
+        group:    'Users',
+        title:    'some changes',
+        body:     'some body 123äöü - admin.user',
       },
     )
 
@@ -198,19 +198,19 @@ class AdminRoleTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
     role_edit(
       data: {
-        name:   'Agent',
-        active: true,
+        name:       'Agent',
+        active:     true,
         permission: {
-          'admin.user' => false,
-          'chat.agent' => true,
-          'cti.agent' => true,
-          'ticket.agent' => true,
+          'admin.user'       => false,
+          'chat.agent'       => true,
+          'cti.agent'        => true,
+          'ticket.agent'     => true,
           'user_preferences' => true,
         },
       }
@@ -220,11 +220,41 @@ class AdminRoleTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
 
     # check if admin exists
     exists_not(css: '[href="#manage"]')
 
+  end
+
+  # regression test for issue #2332 - Role-Filter shows inactive Roles
+  def test_inactive_roles_do_not_show_in_role_filter
+    name = "some role #{rand(99_999_999)}"
+
+    @browser = browser_instance
+    login(
+      username: 'master@example.com',
+      password: 'test',
+      url:      browser_url,
+    )
+    tasks_close_all()
+
+    role_create(
+      data: {
+        name:   name,
+        active: false
+      }
+    )
+
+    click(
+      css:  '.content.active a[href="#manage/users"]',
+    )
+
+    # an inactive role should not appear in the role filter tabs
+    match_not(
+      css:   '.content.active .userSearch',
+      value: name,
+    )
   end
 end

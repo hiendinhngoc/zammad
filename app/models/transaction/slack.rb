@@ -37,7 +37,9 @@ class Transaction::Slack
     return if !config
     return if !config['items']
 
-    ticket = Ticket.find(@item[:object_id])
+    ticket = Ticket.find_by(id: @item[:object_id])
+    return if !ticket
+
     if @item[:article_id]
       article = Ticket::Article.find(@item[:article_id])
 
@@ -45,6 +47,7 @@ class Transaction::Slack
       sender = Ticket::Article::Sender.lookup(id: article.sender_id)
       if sender&.name == 'System'
         return if @item[:changes].blank?
+
         article = nil
       end
     end
@@ -83,12 +86,13 @@ class Transaction::Slack
 
     result = NotificationFactory::Slack.template(
       template: template,
-      locale: user[:preferences][:locale],
-      objects: {
-        ticket: ticket,
-        article: article,
+      locale:   user[:preferences][:locale] || Setting.get('locale_default'),
+      timezone: user[:preferences][:timezone] || Setting.get('timezone_default'),
+      objects:  {
+        ticket:       ticket,
+        article:      article,
         current_user: current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
 
@@ -116,7 +120,7 @@ class Transaction::Slack
       if sent_value
         value = Cache.get(cache_key)
         if value == sent_value
-          Rails.logger.debug "did not send webhook, already sent (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})"
+          Rails.logger.debug { "did not send webhook, already sent (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})" }
           next
         end
         Cache.write(
@@ -133,6 +137,7 @@ class Transaction::Slack
         hit = false
         local_config['types'].each do |type|
           next if type.to_s != @item[:type].to_s
+
           hit = true
           break
         end
@@ -146,6 +151,7 @@ class Transaction::Slack
         hit = false
         local_config['group_ids'].each do |group_id|
           next if group_id.to_s != ticket.group_id.to_s
+
           hit = true
           break
         end
@@ -159,14 +165,14 @@ class Transaction::Slack
         logo_url = local_config['logo_url']
       end
 
-      Rails.logger.debug "sent webhook (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})"
+      Rails.logger.debug { "sent webhook (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})" }
 
       notifier = Slack::Notifier.new(
         local_config['webhook'],
-        channel: local_config['channel'],
-        username: local_config['username'],
-        icon_url: logo_url,
-        mrkdwn: true,
+        channel:     local_config['channel'],
+        username:    local_config['username'],
+        icon_url:    logo_url,
+        mrkdwn:      true,
         http_client: Transaction::Slack::Client,
       )
       if local_config['expand']
@@ -174,21 +180,21 @@ class Transaction::Slack
         result = notifier.ping body
       else
         attachment = {
-          text: result[:body],
+          text:      result[:body],
           mrkdwn_in: ['text'],
-          color: color,
+          color:     color,
         }
         result = notifier.ping result[:subject],
                                attachments: [attachment]
       end
-      if !result.success?
+      if !result.empty? && !result[0].success?
         if sent_value
           Cache.delete(cache_key)
         end
         Rails.logger.error "Unable to post webhook: #{local_config['webhook']}: #{result.inspect}"
         next
       end
-      Rails.logger.debug "sent webhook (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})"
+      Rails.logger.debug { "sent webhook (#{@item[:type]}/#{ticket.id}/#{local_config['webhook']})" }
     end
 
   end
@@ -196,6 +202,7 @@ class Transaction::Slack
   def human_changes(record)
 
     return {} if !@item[:changes]
+
     user = User.find(1)
     locale = user.preferences[:locale] || Setting.get('locale_default') || 'en-us'
 
@@ -289,10 +296,10 @@ class Transaction::Slack
         uri.to_s,
         params,
         {
-          open_timeout: 4,
-          read_timeout: 10,
+          open_timeout:  4,
+          read_timeout:  10,
           total_timeout: 20,
-          log: {
+          log:           {
             facility: 'slack_webhook',
           }
         },

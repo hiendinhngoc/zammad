@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class TicketCsvImportTest < ActiveSupport::TestCase
@@ -22,15 +21,57 @@ class TicketCsvImportTest < ActiveSupport::TestCase
 
   end
 
+  test 'empty payload' do
+    csv_string = ''
+    result = Ticket.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert_nil(result[:records])
+    assert_equal('failed', result[:result])
+    assert_equal('Unable to parse empty file/string for Ticket.', result[:errors][0])
+
+    csv_string = 'id;number;title;state;priority;'
+    result = Ticket.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert(result[:records].blank?)
+    assert_equal('failed', result[:result])
+    assert_equal('No records found in file/string for Ticket.', result[:errors][0])
+  end
+
+  test 'verify required lookup headers' do
+    csv_string = "firstname;lastname;active;\nfirstname-simple-import1;lastname-simple-import1;;true\nfirstname-simple-import2;lastname-simple-import2;false\n"
+    result = Ticket.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert_equal('failed', result[:result])
+    assert_equal('No lookup column like id,number for Ticket found.', result[:errors][0])
+  end
+
   test 'simple import' do
 
     csv_string = "id;number;title;state;priority;owner;customer;group;note\n;123456;some title1;new;2 normal;-;nicole.braun@zammad.org;Users;some note1\n;123457;some title2;closed;1 low;admin@example.com;nicole.braun@zammad.org;Users;some note2\n"
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(2, result[:records].count)
@@ -40,11 +81,11 @@ class TicketCsvImportTest < ActiveSupport::TestCase
     assert_nil(Ticket.find_by(number: '123457'))
 
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
 
     assert_equal(false, result[:try])
@@ -78,11 +119,11 @@ class TicketCsvImportTest < ActiveSupport::TestCase
 
     csv_string = "id;number;title;state;priority;owner;customer;group;note\n999999999;123456;some title1;new;2 normal;-;nicole.braun@zammad.org;Users;some note1\n;123457;some title2;closed;1 low;admin@example.com;nicole.braun@zammad.org;Users;some note2\n"
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(1, result[:errors].count)
@@ -93,11 +134,11 @@ class TicketCsvImportTest < ActiveSupport::TestCase
     assert_nil(Ticket.find_by(number: '123457'))
 
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(1, result[:records].count)
@@ -113,11 +154,11 @@ class TicketCsvImportTest < ActiveSupport::TestCase
     csv_string = "id;number;title;state;priority;owner;customer;group;note\n999999999;123456;some title1;new;2 normal;-;nicole.braun@zammad.org;Users;some note1\n;123457;some title22;closed;1 low;admin@example.com;nicole.braun@zammad.org;Users;some note22\n"
 
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(1, result[:records].count)
@@ -137,33 +178,33 @@ class TicketCsvImportTest < ActiveSupport::TestCase
 
     csv_string = "id;number;not_existing;state;priority;owner;customer;group;note\n;123456;some title1;new;2 normal;-;nicole.braun@zammad.org;Users;some note1\n;123457;some title2;closed;1 low;admin@example.com;nicole.braun@zammad.org;Users;some note2\n"
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(2, result[:errors].count)
     assert_equal('failed', result[:result])
-    assert_equal("Line 1: unknown attribute 'not_existing' for Ticket.", result[:errors][0])
-    assert_equal("Line 2: unknown attribute 'not_existing' for Ticket.", result[:errors][1])
+    assert_equal("Line 1: Unable to create record - unknown attribute 'not_existing' for Ticket.", result[:errors][0])
+    assert_equal("Line 2: Unable to create record - unknown attribute 'not_existing' for Ticket.", result[:errors][1])
 
     assert_nil(Ticket.find_by(number: '123456'))
     assert_nil(Ticket.find_by(number: '123457'))
 
     result = Ticket.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(2, result[:errors].count)
     assert_equal('failed', result[:result])
-    assert_equal("Line 1: unknown attribute 'not_existing' for Ticket.", result[:errors][0])
-    assert_equal("Line 2: unknown attribute 'not_existing' for Ticket.", result[:errors][1])
+    assert_equal("Line 1: Unable to create record - unknown attribute 'not_existing' for Ticket.", result[:errors][0])
+    assert_equal("Line 2: Unable to create record - unknown attribute 'not_existing' for Ticket.", result[:errors][1])
 
     assert_nil(Ticket.find_by(number: '123456'))
     assert_nil(Ticket.find_by(number: '123457'))

@@ -7,9 +7,7 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
     article = Ticket::Article.find(@article_id)
 
     # set retry count
-    if !article.preferences['delivery_retry']
-      article.preferences['delivery_retry'] = 0
-    end
+    article.preferences['delivery_retry'] ||= 0
     article.preferences['delivery_retry'] += 1
 
     ticket = Ticket.lookup(id: article.ticket_id)
@@ -44,7 +42,7 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
       return
     end
 
-    Rails.logger.debug "result info: #{result}"
+    Rails.logger.debug { "result info: #{result}" }
 
     # only private, group messages. channel messages do not have from key
     if result['from'] && result['chat']
@@ -53,9 +51,9 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
       article.to = "@#{result['chat']['username']}"
 
       article.preferences['telegram'] = {
-        date: result['date'],
-        from_id: result['from']['id'],
-        chat_id: result['chat']['id'],
+        date:       result['date'],
+        from_id:    result['from']['id'],
+        chat_id:    result['chat']['id'],
         message_id: result['message_id']
       }
     else
@@ -64,9 +62,9 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
       article.to = "#{result['chat']['title']} Channel"
 
       article.preferences['telegram'] = {
-        date: result['date'],
-        from_id: me['id'],
-        chat_id: result['chat']['id'],
+        date:       result['date'],
+        from_id:    me['id'],
+        chat_id:    result['chat']['id'],
         message_id: result['message_id']
       }
     end
@@ -87,22 +85,22 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
 
   def log_error(local_record, message)
     local_record.preferences['delivery_status'] = 'fail'
-    local_record.preferences['delivery_status_message'] = message
+    local_record.preferences['delivery_status_message'] = message.encode!('UTF-8', 'UTF-8', invalid: :replace, replace: '?')
     local_record.preferences['delivery_status_date'] = Time.zone.now
     local_record.save
     Rails.logger.error message
 
     if local_record.preferences['delivery_retry'] > 3
       Ticket::Article.create(
-        ticket_id: local_record.ticket_id,
-        content_type: 'text/plain',
-        body: "Unable to send telegram message: #{message}",
-        internal: true,
-        sender: Ticket::Article::Sender.find_by(name: 'System'),
-        type: Ticket::Article::Type.find_by(name: 'note'),
-        preferences: {
+        ticket_id:     local_record.ticket_id,
+        content_type:  'text/plain',
+        body:          "Unable to send telegram message: #{message}",
+        internal:      true,
+        sender:        Ticket::Article::Sender.find_by(name: 'System'),
+        type:          Ticket::Article::Type.find_by(name: 'note'),
+        preferences:   {
           delivery_article_id_related: local_record.id,
-          delivery_message: true,
+          delivery_message:            true,
         },
         updated_by_id: 1,
         created_by_id: 1,
@@ -120,6 +118,7 @@ class Observer::Ticket::Article::CommunicateTelegram::BackgroundJob
     if Rails.env.production?
       return current_time + attempts * 120.seconds
     end
+
     current_time + 5.seconds
   end
 end

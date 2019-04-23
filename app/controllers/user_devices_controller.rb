@@ -4,7 +4,7 @@ class UserDevicesController < ApplicationController
   prepend_before_action { authentication_check(permission: 'user_preferences.device') }
 
   def index
-    devices = UserDevice.where(user_id: current_user.id).order('updated_at DESC, name ASC')
+    devices = UserDevice.where(user_id: current_user.id).order(updated_at: :desc, name: :asc)
     devices_full = []
     devices.each do |device|
       attributes = device.attributes
@@ -36,6 +36,7 @@ class UserDevicesController < ApplicationController
         next if !session.data['user_id']
         next if !session.data['user_device_id']
         next if session.data['user_device_id'] != user_device.id
+
         SessionHelper.destroy( session.id )
       end
       user_device.destroy

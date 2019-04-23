@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class EmailProcessFollowUpTest < ActiveSupport::TestCase
@@ -6,24 +5,24 @@ class EmailProcessFollowUpTest < ActiveSupport::TestCase
   test 'process with follow up check' do
 
     ticket = Ticket.create(
-      title: 'follow up check',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'new'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'follow up check',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'new'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'follow up check',
-      message_id: '<20150830145601.30.608882@edenhofer.zammad.com>',
-      body: 'some message article',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'follow up check',
+      message_id:    '<20150830145601.30.608882@edenhofer.zammad.com>',
+      body:          'some message article',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -196,28 +195,27 @@ no reference "
 
   test 'process with follow up check with different ticket hook' do
 
-    setting_orig = Setting.get('ticket_hook')
     Setting.set('ticket_hook', 'VD-Ticket#')
 
     ticket = Ticket.create(
-      title: 'follow up check ticket hook',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'new'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'follow up check ticket hook',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'new'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'follow up check',
-      message_id: '<20150830145601.30.608882.123123@edenhofer.zammad.com>',
-      body: 'some message article',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'follow up check',
+      message_id:    '<20150830145601.30.608882.123123@edenhofer.zammad.com>',
+      body:          'some message article',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -243,14 +241,10 @@ Some Text"
     assert_equal(ticket.id, ticket_p.id)
 
     travel_back
-
-    Setting.set('ticket_hook', setting_orig)
-
   end
 
   test 'process with follow up check with two external reference headers' do
 
-    setting_orig = Setting.get('postmaster_follow_up_search_in')
     Setting.set('postmaster_follow_up_search_in', %w[body attachment references])
 
     data1 = "From: me@example.com
@@ -286,31 +280,30 @@ test 123
 
     assert_equal(ticket_p2.id, ticket_p3.id)
 
-    Setting.set('postmaster_follow_up_search_in', setting_orig)
     travel_back
   end
 
   test 'process with follow up check - with auto responses and no T# in subject_build' do
 
     ticket = Ticket.create(
-      title: 'follow up - with references follow up check',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'follow up - with references follow up check',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'follow up with references follow up check',
-      message_id: '<20151222145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message with references follow up check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'follow up with references follow up check',
+      message_id:    '<20151222145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message with references follow up check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -338,24 +331,24 @@ Some Text"
   test 'process with follow up check - email with more forgein T#\'s in subject' do
 
     ticket = Ticket.create(
-      title: 'email with more forgein T#\'s in subject',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'email with more forgein T#\'s in subject',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'follow up with references follow up check',
-      message_id: '<20151222145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message with references follow up check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'follow up with references follow up check',
+      message_id:    '<20151222145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message with references follow up check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -383,7 +376,6 @@ Some Text"
   test 'process with follow up check - ticket initiated by customer without T# in subject and other people in Cc reply to all' do
 
     # check if follow up based on inital system sender address
-    setting_orig = Setting.get('postmaster_follow_up_search_in')
     Setting.set('postmaster_follow_up_search_in', [])
 
     subject = "ticket initiated by customer without T# in subject and other people in Cc reply to all #{rand(9999)}"
@@ -470,14 +462,11 @@ Some other Text"
     assert_equal(ticket5.id, ticket6.id)
     assert_equal(subject, ticket6.title)
 
-    Setting.set('postmaster_follow_up_search_in', setting_orig)
   end
 
   test 'process with follow up check - with none ticket# in subject' do
 
-    setting_orig = Setting.get('postmaster_follow_up_search_in')
     Setting.set('postmaster_follow_up_search_in', [])
-    ticket_hook_position_orig = Setting.get('ticket_hook_position')
     Setting.set('ticket_hook_position', 'none')
 
     subject = 'some title'
@@ -505,9 +494,53 @@ Some Text"
     ticket_p2, article_p2, user_p2, mail = Channel::EmailParser.new.process({}, email_raw_string)
     ticket2 = Ticket.find(ticket_p2.id)
     assert_equal(ticket1.id, ticket2.id)
-
-    Setting.set('ticket_hook_position', ticket_hook_position_orig)
-    Setting.set('postmaster_follow_up_search_in', setting_orig)
   end
 
+  test 'process with follow up check - in body' do
+
+    Setting.set('postmaster_follow_up_search_in', %w[body attachment references])
+    Setting.set('ticket_hook', '#')
+
+    email_raw_string = "From: me@example.com
+To: bob@example.com
+Subject: some subject
+
+Some Text"
+
+    ticket_p1, article_1, user_1, mail = Channel::EmailParser.new.process({}, email_raw_string)
+
+    email_raw_string = "From: me@example.com
+To: bob@example.com
+Subject: some subject
+
+Some Text #{Setting.get('ticket_hook')}#{ticket_p1.number} asdasd"
+
+    ticket_p2, article_2, user_2, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    assert_equal(ticket_p1.id, ticket_p2.id)
+
+    email_raw_string = "From: me@example.com
+To: bob@example.com
+Subject: some subject
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html;
+
+<b>Some Text #{Setting.get('ticket_hook')}#{ticket_p1.number}</b>
+"
+
+    ticket_p3, article_3, user_3, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    assert_equal(ticket_p1.id, ticket_p3.id)
+
+    email_raw_string = "From: me@example.com
+To: bob@example.com
+Subject: some subject
+Content-Transfer-Encoding: 8bit
+Content-Type: text/html;
+
+<b>Some Text <span color=\"#{Setting.get('ticket_hook')}#{ticket_p1.number}\">test</span></b>
+"
+
+    ticket_p4, article_4, user_4, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    assert_not_equal(ticket_p1.id, ticket_p4.id)
+
+  end
 end

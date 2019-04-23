@@ -1,6 +1,7 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
 class Scheduler < ApplicationModel
+  extend ::Mixin::StartFinishLogger
 
   # rubocop:disable Style/ClassVars
   @@jobs_started = {}
@@ -36,7 +37,7 @@ class Scheduler < ApplicationModel
       end
 
       # read/load jobs and check if it is alredy started
-      jobs = Scheduler.where('active = ?', true).order('prio ASC')
+      jobs = Scheduler.where('active = ?', true).order(prio: :asc)
       jobs.each do |job|
 
         # ignore job is still running
@@ -120,18 +121,38 @@ class Scheduler < ApplicationModel
       raise 'This method should only get called when Scheduler.threads are initialized. Use `force: true` to start anyway.'
     end
 
-    Delayed::Job.all.each do |job|
-      cleanup_delayed(job)
+    start_time = Time.zone.now
+
+    cleanup_delayed_jobs(start_time)
+    cleanup_import_jobs(start_time)
+  end
+
+  # Checks for locked delayed jobs and tries to reschedule or destroy each of them.
+  #
+  # @param [ActiveSupport::TimeWithZone] after the time the cleanup was started
+  #
+  # @example
+  #   Scheduler.cleanup_delayed_jobs(TimeZone.now)
+  #
+  # return [nil]
+  def self.cleanup_delayed_jobs(after)
+    log_start_finish(:info, "Cleanup of left over locked delayed jobs #{after}") do
+
+      Delayed::Job.where('updated_at < ?', after).where.not(locked_at: nil).each do |job|
+        log_start_finish(:info, "Checking left over delayed job #{job.inspect}") do
+          cleanup_delayed(job)
+        end
+      end
     end
   end
 
-  # Checks if the given job can be rescheduled or destroys it. Logs the action as warn.
-  # Works only for locked jobs. Jobs that are not locked are ignored and
+  # Checks if the given delayed job can be rescheduled or destroys it. Logs the action as warn.
+  # Works only for locked delayed jobs. Delayed jobs that are not locked are ignored and
   # should get destroyed directly.
-  # Checks the delayed job object for a method called .reschedule?. The memthod is called
-  # with the delayed job as a parameter. The result value is expected as a Boolean. If the
-  # result is true the lock gets removed and the delayed job gets rescheduled. If the return
-  # value is false it will get destroyed which is the default behaviour.
+  # Checks the Delayed::Job instance for a method called .reschedule?. The method is called
+  # with the Delayed::Job instance as a parameter. The result value is expected to be a Boolean.
+  # If the result is true the lock gets removed and the delayed job gets rescheduled.
+  # If the return value is false it will get destroyed which is the default behaviour.
   #
   # @param [Delayed::Job] job the job that should get checked for destroying/rescheduling.
   #
@@ -172,7 +193,34 @@ class Scheduler < ApplicationModel
       job.destroy
     end
 
-    Rails.logger.warn "#{action} locked delayed job: #{job_name}"
+    logger.warn "#{action} locked delayed job: #{job_name}"
+  end
+
+  # Checks for killed import jobs and marks them as finished and adds a note.
+  #
+  # @param [ActiveSupport::TimeWithZone] after the time the cleanup was started
+  #
+  # @example
+  #   Scheduler.cleanup_import_jobs(TimeZone.now)
+  #
+  # return [nil]
+  def self.cleanup_import_jobs(after)
+    log_start_finish(:info, "Cleanup of left over import jobs #{after}") do
+      error = 'Interrupted by scheduler restart. Please restart manually or wait till next execution time.'.freeze
+
+      # we need to exclude jobs that were updated at or since we started
+      # cleaning up (via the #reschedule? call) because they might
+      # were started `.delay`-ed and are flagged for restart
+      ImportJob.running.where('updated_at < ?', after).each do |job|
+
+        job.update!(
+          finished_at: after,
+          result:      {
+            error: error
+          }
+        )
+      end
+    end
   end
 
   def self.start_job(job)
@@ -185,7 +233,9 @@ class Scheduler < ApplicationModel
 
       # start loop for periods equal or under 5 minutes
       if job.period && job.period <= 5.minutes
+        loop_count = 0
         loop do
+          loop_count += 1
           _start_job(job)
           job = Scheduler.lookup(id: job.id)
 
@@ -198,19 +248,29 @@ class Scheduler < ApplicationModel
           # exit if there is no loop period defined
           break if !job.period
 
+          # only do a certain amount of loops in this thread
+          break if loop_count == 1800
+
           # wait until next run
           sleep job.period
         end
       else
         _start_job(job)
       end
-      job.pid = ''
-      job.save
-      logger.info " ...stopped thread for '#{job.method}'"
-      ActiveRecord::Base.connection.close
 
-      # release thread lock and remove thread handle
-      @@jobs_started.delete(job.id)
+      if job.present?
+        job.pid = ''
+        job.save
+
+        logger.info " ...stopped thread for '#{job.method}'"
+
+        # release thread lock and remove thread handle
+        @@jobs_started.delete(job.id)
+      else
+        logger.warn ' ...Job got deleted while running'
+      end
+
+      ActiveRecord::Base.connection.close
     end
   end
 
@@ -245,6 +305,8 @@ class Scheduler < ApplicationModel
 
     # restart job again
     if try_run_max > try_count
+      # wait between retries (see https://github.com/zammad/zammad/issues/1950)
+      sleep(try_count) if Rails.env.production?
       _start_job(job, try_count, try_run_time)
     else
       # release thread lock and remove thread handle
@@ -254,8 +316,8 @@ class Scheduler < ApplicationModel
 
       job.update!(
         error_message: error,
-        status: 'error',
-        active: false,
+        status:        'error',
+        active:        false,
       )
     end
 
@@ -290,7 +352,7 @@ class Scheduler < ApplicationModel
     end
 
     # used for production
-    wait = 8
+    wait = 4
     Thread.new do
       sleep wait
 
@@ -301,7 +363,7 @@ class Scheduler < ApplicationModel
         result = nil
 
         realtime = Benchmark.realtime do
-          logger.debug "*** worker thread, #{Delayed::Job.all.count} in queue"
+          logger.debug { "*** worker thread, #{Delayed::Job.all.count} in queue" }
           result = Delayed::Worker.new.work_off
         end
 
@@ -309,9 +371,9 @@ class Scheduler < ApplicationModel
 
         if count.zero?
           sleep wait
-          logger.debug '*** worker thread loop'
+          logger.debug { '*** worker thread loop' }
         else
-          format "*** #{count} jobs processed at %.4f j/s, %d failed ...\n", count / realtime, result.last
+          format "*** #{count} jobs processed at %<jps>.4f j/s, %<failed>d failed ...\n", jps: count / realtime, failed: result.last
         end
       end
 

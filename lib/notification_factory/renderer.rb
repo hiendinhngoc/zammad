@@ -5,27 +5,30 @@ class NotificationFactory::Renderer
 examples how to use
 
     message_subject = NotificationFactory::Renderer.new(
-      {
+      objects: {
         ticket: Ticket.first,
       },
-      'de-de',
-      'some template <b>#{ticket.title}</b> {config.fqdn}',
-      false
+      locale: 'de-de',
+      timezone: 'America/Port-au-Prince',
+      template: 'some template <b>#{ticket.title}</b> {config.fqdn}',
+      escape: false
     ).render
 
     message_body = NotificationFactory::Renderer.new(
-      {
+      objects: {
         ticket: Ticket.first,
       },
-      'de-de',
-      'some template <b>#{ticket.title}</b> #{config.fqdn}',
+      locale: 'de-de',
+      timezone: 'America/Port-au-Prince',
+      template: 'some template <b>#{ticket.title}</b> #{config.fqdn}',
     ).render
 
 =end
 
-  def initialize(objects, locale, template, escape = true)
+  def initialize(objects:, locale: nil, timezone: nil, template:, escape: true)
     @objects = objects
     @locale = locale || Setting.get('locale_default') || 'en-us'
+    @timezone = timezone || Setting.get('timezone_default')
     @template = NotificationFactory::Template.new(template, escape)
     @escape = escape
   end
@@ -52,7 +55,7 @@ examples how to use
     # escape in html mode
     if escape
       no_escape = {
-        'article.body_as_html' => true,
+        'article.body_as_html'                      => true,
         'article.body_as_text_with_quote.text2html' => true,
       }
       if no_escape[key]
@@ -66,6 +69,7 @@ examples how to use
 
     # if no object is given, just return
     return '#{no such object}' if object_name.blank? # rubocop:disable Lint/InterpolationCheck
+
     object_refs = @objects[object_name] || @objects[object_name.to_sym]
 
     # if object is not in avalable objects, just return
@@ -75,19 +79,46 @@ examples how to use
     if object_methods.blank? && object_refs.class != String && object_refs.class != Float && object_refs.class != Integer
       return "\#{#{key} / no such method}"
     end
+
+    previous_object_refs = ''
     object_methods_s = ''
     object_methods.each do |method_raw|
 
       method = method_raw.strip
+
+      if method == 'value'
+        temp = object_refs
+        object_refs = display_value(previous_object_refs, method, object_methods_s, object_refs)
+        previous_object_refs = temp
+      end
 
       if object_methods_s != ''
         object_methods_s += '.'
       end
       object_methods_s += method
 
+      next if method == 'value'
+
       if object_methods_s == ''
         value = "\#{#{object_name}.#{object_methods_s} / no such method}"
         break
+      end
+
+      arguments = nil
+      if /\A(?<method_id>[^\(]+)\((?<parameter>[^\)]+)\)\z/ =~ method
+
+        if parameter != parameter.to_i.to_s
+          value = "\#{#{object_name}.#{object_methods_s} / invalid parameter: #{parameter}}"
+          break
+        end
+
+        begin
+          arguments = Array(parameter.to_i)
+          method    = method_id
+        rescue
+          value = "\#{#{object_name}.#{object_methods_s} / #{e.message}}"
+          break
+        end
       end
 
       # if method exists
@@ -96,9 +127,16 @@ examples how to use
         break
       end
       begin
-        object_refs = object_refs.send(method.to_sym)
+        previous_object_refs = object_refs
+        object_refs = object_refs.send(method.to_sym, *arguments)
+
+        # body_as_html should trigger the cloning of all inline attachments from the parent article (issue #2399)
+        if method.to_sym == :body_as_html && previous_object_refs.respond_to?(:should_clone_inline_attachments)
+          previous_object_refs.should_clone_inline_attachments = true
+        end
       rescue => e
-        object_refs = "\#{#{object_name}.#{object_methods_s} / e.message}"
+        value = "\#{#{object_name}.#{object_methods_s} / #{e.message}}"
+        break
       end
     end
     placeholder = if !value
@@ -106,7 +144,8 @@ examples how to use
                   else
                     value
                   end
-    escaping(placeholder, escape)
+
+    escaping(convert_to_timezone(placeholder), escape)
   end
 
   # c - config
@@ -124,23 +163,45 @@ examples how to use
   end
 
   # h - htmlEscape
-  # h('fqdn', htmlEscape)
-  def h(key)
-    return key if !key
-    CGI.escapeHTML(key.to_s)
+  # h(htmlEscape)
+  def h(value)
+    return value if !value
+
+    CGI.escapeHTML(convert_to_timezone(value).to_s)
   end
 
   private
 
+  def convert_to_timezone(value)
+    return Translation.timestamp(@locale, @timezone, value) if value.class == ActiveSupport::TimeWithZone
+    return Translation.date(@locale, value) if value.class == Date
+
+    value
+  end
+
   def escaping(key, escape)
     return key if escape == false
     return key if escape.nil? && !@escape
+
     h key
   end
 
   def data_key_valid?(key)
     return false if key =~ /`|\.(|\s*)(save|destroy|delete|remove|drop|update|create|new|all|where|find|raise|dump|rollback|freeze)/i && key !~ /(update|create)d_(at|by)/i
+
     true
   end
 
+  def display_value(object, method_name, previous_method_names, key)
+    return key if method_name != 'value' ||
+                  !key.instance_of?(String)
+
+    attributes = ObjectManager::Attribute
+                 .where(object_lookup_id: ObjectLookup.by_name(object.class.to_s))
+                 .where(name: previous_method_names.split('.').last)
+
+    return key if attributes.count.zero? || attributes.first.data_type != 'select'
+
+    attributes.first.data_option['options'][key] || key
+  end
 end

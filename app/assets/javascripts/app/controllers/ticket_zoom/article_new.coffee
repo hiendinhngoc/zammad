@@ -47,26 +47,35 @@ class App.TicketZoomArticleNew extends App.Controller
     if @defaults.body or @isIE10()
       @openTextarea(null, true)
 
+    if _.isArray(@defaults.attachments)
+      for attachment in @defaults.attachments
+        @renderAttachment(attachment)
+
     # set article type and expand text area
     @bind('ui::ticket::setArticleType', (data) =>
       return if data.ticket.id.toString() isnt @ticket_id.toString()
 
+      @setArticleTypePre(data.type.name, data.signaturePosition)
+
       @openTextarea(null, true)
       for key, value of data.article
         if key is 'body'
-          @$('[data-name="' + key + '"]').html(value)
+          @$("[data-name=\"#{key}\"]").html(value)
         else
-          @$('[name="' + key + '"]').val(value).trigger('change')
+          @$("[name=\"#{key}\"]").val(value).trigger('change')
 
-      # preselect article type
-      @setArticleType(data.type.name, data.signaturePosition)
+      @setArticleTypePost(data.type.name, data.signaturePosition)
+
+      # set focus into field
+      if data.focus
+        @$("[name=\"#{data.focus}\"], [data-name=\"#{data.focus}\"]").focus().parent().find('.token-input').focus()
+        return
 
       # set focus at end of field
       if data.position is 'end'
         @placeCaretAtEnd(@textarea.get(0))
         return
 
-      # set focus into field
       @textarea.focus()
     )
 
@@ -86,17 +95,23 @@ class App.TicketZoomArticleNew extends App.Controller
       @render()
     )
 
+    # set expand of text area only once
+    @bind('ui::ticket::shown', (data) =>
+      return if data.ticket_id.toString() isnt @ticket.id.toString()
+      @tokanice(@type)
+    )
+
     # rerender, e. g. on language change
     @bind('ui:rerender', =>
       @render()
     )
 
+  tokanice: (type = 'email') ->
+    App.Utils.tokanice('.content.active .js-to, .js-cc, js-bcc', type)
+
   setPossibleArticleTypes: =>
-    actionConfig = App.Config.get('TicketZoomArticleAction')
-    keys = _.keys(actionConfig).sort()
     @articleTypes = []
-    for key in keys
-      config = actionConfig[key]
+    for config in @actions()
       if config && config.articleTypes
         @articleTypes = config.articleTypes(@articleTypes, @ticket, @)
 
@@ -138,7 +153,8 @@ class App.TicketZoomArticleNew extends App.Controller
       isCustomer:       @permissionCheck('ticket.customer')
       internalSelector: @internalSelector
     )
-    @setArticleType(@type)
+    @setArticleTypePre(@type)
+    @setArticleTypePost(@type)
 
     new App.WidgetAvatar(
       el:        @$('.js-avatar')
@@ -147,15 +163,7 @@ class App.TicketZoomArticleNew extends App.Controller
       position:  'right'
     )
 
-    configure_attributes = [
-      { name: 'customer_id', display: 'Recipients', tag: 'user_autocompletion', null: false, placeholder: 'Enter Person or Organization/Company', minLengt: 2, disableCreateObject: false },
-    ]
-
-    controller = new App.ControllerForm(
-      el: @$('.recipients')
-      model:
-        configure_attributes: configure_attributes
-    )
+    @tokanice(@type)
 
     @$('[data-name="body"]').ce({
       mode:      'richtext'
@@ -164,14 +172,12 @@ class App.TicketZoomArticleNew extends App.Controller
     })
 
     html5Upload.initialize(
-      uploadUrl:       App.Config.get('api_path') + '/ticket_attachment_upload'
+      uploadUrl:       "#{App.Config.get('api_path')}/upload_caches/#{@form_id}"
       dropContainer:   @$('.article-add').get(0)
       cancelContainer: @cancelContainer
       inputField:      @$('.article-attachment input').get(0)
       key:             'File'
-      data:
-        form_id: @form_id
-      maxSimultaneousUploads: 1,
+      maxSimultaneousUploads: 1
       onFileAdded:            (file) =>
 
         file.on(
@@ -181,10 +187,16 @@ class App.TicketZoomArticleNew extends App.Controller
             @attachmentUpload.removeClass('hide')
             @cancelContainer.removeClass('hide')
 
+            if @callbackFileUploadStart
+              @callbackFileUploadStart()
+
           onAborted: =>
             @attachmentPlaceholder.removeClass('hide')
             @attachmentUpload.addClass('hide')
             @$('.article-attachment input').val('')
+
+            if @callbackFileUploadStop
+              @callbackFileUploadStop()
 
           # Called after received response from the server
           onCompleted: (response) =>
@@ -201,6 +213,9 @@ class App.TicketZoomArticleNew extends App.Controller
 
             @renderAttachment(response.data)
             @$('.article-attachment input').val('')
+
+            if @callbackFileUploadStop
+              @callbackFileUploadStop()
 
           # Called during upload progress, first parameter
           # is decimal value from 0 to 100.
@@ -258,10 +273,7 @@ class App.TicketZoomArticleNew extends App.Controller
       params.internal = false
 
     # backend based validation
-    actionConfig = App.Config.get('TicketZoomArticleAction')
-    keys = _.keys(actionConfig).sort()
-    for key in keys
-      config = actionConfig[key]
+    for config in @actions()
       if config && config.params
         params = config.params(params.type, params, @)
 
@@ -303,10 +315,7 @@ class App.TicketZoomArticleNew extends App.Controller
           return false
 
     # backend based validation
-    actionConfig = App.Config.get('TicketZoomArticleAction')
-    keys = _.keys(actionConfig).sort()
-    for key in keys
-      config = actionConfig[key]
+    for config in @actions()
       if config && config.validation
         return false if !config.validation(params.type, params, @)
 
@@ -330,10 +339,12 @@ class App.TicketZoomArticleNew extends App.Controller
   selectArticleType: (event) =>
     event.stopPropagation()
     articleTypeToSet = $(event.target).closest('.pop-selectable').data('value')
-    @setArticleType(articleTypeToSet)
+    @setArticleTypePre(articleTypeToSet)
     @hideSelectableArticleType()
+    @setArticleTypePost(articleTypeToSet)
 
-    $(window).off 'click.ticket-zoom-select-type'
+    $(window).off('click.ticket-zoom-select-type')
+    @tokanice(articleTypeToSet)
 
   hideSelectableArticleType: =>
     @el.find('.js-articleTypes').addClass('is-hidden')
@@ -353,8 +364,14 @@ class App.TicketZoomArticleNew extends App.Controller
 
     @$('[name=internal]').val('')
 
-  setArticleType: (type, signaturePosition = 'bottom') =>
+  setArticleTypePre: (type, signaturePosition = 'bottom') =>
     wasScrolledToBottom = @isScrolledToBottom()
+
+    # reset old params
+    if type isnt @type
+      for key in ['to', 'cc', 'bcc', 'subject', 'in_reply_to']
+        @$("[name=#{key}]").val('').trigger('change')
+
     @type = type
     @$('[name=type]').val(type).trigger('change')
     @articleNewEdit.attr('data-type', type)
@@ -373,13 +390,6 @@ class App.TicketZoomArticleNew extends App.Controller
         @setArticleInternal(true)
       else
         @setArticleInternal(false)
-
-    actionConfig = App.Config.get('TicketZoomArticleAction')
-    keys = _.keys(actionConfig).sort()
-    for key in keys
-      localConfig = actionConfig[key]
-      if localConfig && localConfig.setArticleType
-        localConfig.setArticleType(@type, @ticket, @, signaturePosition)
 
     # show/hide attributes/features
     @maxTextLength = undefined
@@ -416,6 +426,11 @@ class App.TicketZoomArticleNew extends App.Controller
     )
 
     @scrollToBottom() if wasScrolledToBottom
+
+  setArticleTypePost: (type, signaturePosition = 'bottom') =>
+    for localConfig in @actions()
+      if localConfig && localConfig.setArticleTypePost
+        localConfig.setArticleTypePost(@type, @ticket, @, signaturePosition)
 
   isScrolledToBottom: ->
     return @el.scrollParent().scrollTop() + @el.scrollParent().height() is @el.scrollParent().prop('scrollHeight')
@@ -582,9 +597,8 @@ class App.TicketZoomArticleNew extends App.Controller
 
       # delete attachment from storage
       App.Ajax.request(
-        type:  'DELETE'
-        url:   App.Config.get('api_path') + '/ticket_attachment_upload'
-        data:  JSON.stringify(id: id)
+        type:        'DELETE'
+        url:         "#{App.Config.get('api_path')}/upload_caches/#{@form_id}/items/#{id}"
         processData: false
       )
 
@@ -594,3 +608,13 @@ class App.TicketZoomArticleNew extends App.Controller
       if element.find('.attachment').length == 0
         element.empty()
     )
+
+  actions: ->
+    actionConfig = App.Config.get('TicketZoomArticleAction')
+    keys = _.keys(actionConfig).sort()
+    actions = []
+    for key in keys
+      localConfig = actionConfig[key]
+      if localConfig
+        actions.push localConfig
+    actions

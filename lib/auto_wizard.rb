@@ -15,6 +15,7 @@ returns
   def self.enabled?
     auto_wizard_file_location = file_location
     return false if !File.file?(auto_wizard_file_location)
+
     true
   end
 
@@ -33,6 +34,7 @@ returns
   def self.data
     auto_wizard_file_location = file_location
     raise "So such file #{auto_wizard_file_location}" if !File.file?(auto_wizard_file_location)
+
     JSON.parse(File.read(auto_wizard_file_location))
   end
 
@@ -88,15 +90,15 @@ returns
 
     # create Permissions/Organization
     model_map = {
-      'Permissions' => 'Permission',
+      'Permissions'   => 'Permission',
       'Organizations' => 'Organization',
     }
     model_map.each do |map_name, model|
       next if !auto_wizard_hash[map_name]
+
       auto_wizard_hash[map_name].each do |data|
-        generic_object = Kernel.const_get(model)
         data.symbolize_keys!
-        generic_object.create_or_update_with_ref(data)
+        model.constantize.create_or_update_with_ref(data)
       end
     end
 
@@ -136,10 +138,10 @@ returns
     }
     model_map.each do |map_name, model|
       next if !auto_wizard_hash[map_name]
+
       auto_wizard_hash[map_name].each do |data|
-        generic_object = Kernel.const_get(model)
         data.symbolize_keys!
-        generic_object.create_or_update_with_ref(data)
+        model.constantize.create_or_update_with_ref(data)
       end
     end
 

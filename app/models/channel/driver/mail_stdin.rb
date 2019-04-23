@@ -10,11 +10,15 @@ process emails from STDIN
 
 e. g.
 
-  cat test/fixtures/mail1.box | rails r 'Channel::Driver::MailStdin.new'
+  cat test/data/mail/mail001.box | rails r 'Channel::Driver::MailStdin.new'
 
 e. g. if you want to trust on mail headers
 
-  cat test/fixtures/mail1.box | rails r 'Channel::Driver::MailStdin.new(trusted: true)'
+  cat test/data/mail/mail001.box | rails r 'Channel::Driver::MailStdin.new(trusted: true)'
+
+e. g. if you want to process this mail by using a certain inbound channel
+
+  cat test/data/mail/mail001.box | rails r 'Channel::Driver::MailStdin.new(Channel.find(14))'
 
 =end
 

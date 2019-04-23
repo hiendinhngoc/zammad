@@ -1,4 +1,4 @@
-require 'sequencer/unit/common/mixin/dynamic_attribute'
+require_dependency 'sequencer/unit/common/mixin/dynamic_attribute'
 
 class Sequencer
   class Unit
@@ -17,7 +17,8 @@ class Sequencer
 
                 def process
                   return if !skip?
-                  logger.debug("Skipping. Blank #{attribute} found: #{attribute_value.inspect}")
+
+                  logger.debug { "Skipping. Blank #{attribute} found: #{attribute_value.inspect}" }
                   state.provide(:action, :skipped)
                 end
 
@@ -29,6 +30,7 @@ class Sequencer
 
                 def skip?
                   return true if attribute_value.blank?
+
                   relevant_blank?
                 end
 

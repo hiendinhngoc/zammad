@@ -1,14 +1,16 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 class Ticket::State < ApplicationModel
+  include CanBeImported
   include ChecksLatestChangeObserved
+
+  belongs_to :state_type, class_name: 'Ticket::StateType', inverse_of: :states
+  belongs_to :next_state, class_name: 'Ticket::State'
 
   after_create  :ensure_defaults
   after_update  :ensure_defaults
   after_destroy :ensure_defaults
 
-  belongs_to    :state_type, class_name: 'Ticket::StateType'
-  belongs_to    :next_state, class_name: 'Ticket::State'
-  validates     :name, presence: true
+  validates :name, presence: true
 
   attr_accessor :callback_loop
 
@@ -78,6 +80,7 @@ returns:
 
   def ignore_escalation?
     return true if ignore_escalation
+
     false
   end
 
@@ -99,6 +102,7 @@ returns:
       Ticket::State.all.each do |local_state|
         next if local_state.id == id
         next if local_state[default_field] == false
+
         local_state[default_field] = false
         local_state.callback_loop = true
         local_state.save!

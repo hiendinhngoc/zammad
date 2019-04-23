@@ -7,7 +7,7 @@ class Sequencer
             class CheckValidity < Sequencer::Unit::Base
               prepend ::Sequencer::Unit::Import::Common::Model::Mixin::Skip::Action
 
-              skip_action :skipped
+              skip_action :skipped, :failed
 
               uses :mapped
 
@@ -24,6 +24,7 @@ class Sequencer
                 # TODO: should get unified with User#check_email
                 email = extract_email(source)
                 return if !email
+
                 email.downcase
               end
 
@@ -36,6 +37,7 @@ class Sequencer
                 Mail::Address.new(source).address
               rescue
                 return source if source !~ /<\s*([^>]+)/
+
                 $1.strip
               end
             end

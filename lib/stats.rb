@@ -1,7 +1,4 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-
-require 'stats_store'
-
 class Stats
 
 =begin
@@ -18,15 +15,6 @@ returns
 
   def self.generate
 
-    backends = [
-      Stats::TicketChannelDistribution,
-      Stats::TicketInProcess,
-      Stats::TicketLoadMeasure,
-      Stats::TicketEscalation,
-      Stats::TicketReopen,
-      Stats::TicketWaitingTime,
-    ]
-
     # generate stats per agent
     users = User.with_permissions('ticket.agent')
     agent_count = 0
@@ -34,9 +22,27 @@ returns
     users.each do |user|
       next if user.id == 1
       next if !user.active
+
       agent_count += 1
       data = {}
-      backends.each do |backend|
+
+      backends = Setting.where(area: 'Dashboard::Stats')
+      if backends.blank?
+        raise "No settings with area 'Dashboard::Stats' defined"
+      end
+
+      backends.each do |stats_item|
+        # additional permission check
+        next if stats_item.preferences[:permission] && !user.permissions?(stats_item.preferences[:permission])
+
+        backend = stats_item.state_current[:value]
+        if !backend
+          raise 'Dashboard::Stats backend ' + stats_item.name + ' is not defined'
+        end
+
+        require_dependency backend.to_filename
+        backend = backend.constantize
+
         data[backend] = backend.generate(user)
       end
       user_result[user.id] = data
@@ -47,6 +53,7 @@ returns
     user_result.each_value do |data|
       data.each do |backend_model, backend_result|
         next if !backend_result.key?(:used_for_average)
+
         if !backend_average_sum[backend_model]
           backend_average_sum[backend_model] = 0
         end
@@ -60,6 +67,7 @@ returns
       user_result.each do |user_id, data|
         next if !data[backend_model_average]
         next if !data[backend_model_average].key?(:used_for_average)
+
         data[backend_model_average][:average_per_agent] = average
 
         # generate icon state
@@ -74,14 +82,14 @@ returns
       end
       state_store = StatsStore.sync(
         object: 'User',
-        o_id: user_id,
-        key: 'dashboard',
-        data: data_for_user,
+        o_id:   user_id,
+        key:    'dashboard',
+        data:   data_for_user,
       )
 
       message = {
         event: 'resetCollection',
-        data: {
+        data:  {
           state_store.class.to_app_model => [state_store],
         },
       }

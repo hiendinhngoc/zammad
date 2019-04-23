@@ -41,6 +41,7 @@ all:
 
   def self.sync
     return true if load_from_file
+
     load
   end
 
@@ -73,6 +74,7 @@ all:
     version = Version.get
     file = Rails.root.join('config', "locales-#{version}.yml")
     return false if !File.exist?(file)
+
     data = YAML.load_file(file)
     to_database(data)
     true
@@ -98,7 +100,7 @@ all:
         version: version,
       },
       {
-        json: true,
+        json:         true,
         open_timeout: 8,
         read_timeout: 24,
       }

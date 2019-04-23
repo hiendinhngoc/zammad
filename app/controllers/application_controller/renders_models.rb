@@ -113,9 +113,9 @@ module ApplicationController::RendersModels
     end
 
     generic_objects = if offset.positive?
-                        object.limit(params[:per_page]).order(id: 'ASC').offset(offset).limit(limit)
+                        object.limit(params[:per_page]).order(id: :asc).offset(offset).limit(limit)
                       else
-                        object.all.order(id: 'ASC').offset(offset).limit(limit)
+                        object.all.order(id: :asc).offset(offset).limit(limit)
                       end
 
     if response_expand?
@@ -136,7 +136,7 @@ module ApplicationController::RendersModels
       end
       render json: {
         record_ids: item_ids,
-        assets: assets,
+        assets:     assets,
       }, status: :ok
       return
     end
@@ -156,6 +156,7 @@ module ApplicationController::RendersModels
     generic_object = object.find(params[:id])
     result = Models.references(object, generic_object.id)
     return false if result.blank?
+
     raise Exceptions::UnprocessableEntity, 'Can\'t delete, object has references.'
   rescue => e
     raise Exceptions::UnprocessableEntity, e

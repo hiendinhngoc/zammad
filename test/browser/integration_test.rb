@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class IntegrationTest < TestCase
@@ -8,7 +7,7 @@ class IntegrationTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -18,15 +17,15 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/sipgate"]')
     sleep 2
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'on',
     )
     set(
-      css: '.content.active .main .js-inboundBlockCallerId input[name=caller_id]',
+      css:   '.content.active .main .js-inboundBlockCallerId input[name=caller_id]',
       value: '041 1234567',
     )
     set(
-      css: '.content.active .main .js-inboundBlockCallerId input[name=note]',
+      css:   '.content.active .main .js-inboundBlockCallerId input[name=note]',
       value: 'block spam caller id',
     )
     click(css: '.content.active .main .js-inboundBlockCallerId .js-add')
@@ -62,7 +61,7 @@ class IntegrationTest < TestCase
     click(css: '.content.active .main .js-submit')
     sleep 6
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'off',
     )
 
@@ -80,7 +79,7 @@ class IntegrationTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -90,35 +89,35 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/slack"]')
     sleep 2
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'on',
     )
     click(css: '.content.active .main .checkbox-replacement')
     select(
-      css: '.content.active .main select[name="group_ids"]',
+      css:   '.content.active .main select[name="group_ids"]',
       value: 'Users',
     )
     set(
-      css: '.content.active .main input[name="webhook"]',
+      css:   '.content.active .main input[name="webhook"]',
       value: 'http://some_url/webhook/123',
     )
     set(
-      css: '.content.active .main input[name="username"]',
+      css:   '.content.active .main input[name="username"]',
       value: 'someuser',
     )
 
     click(css: '.content.active .main .js-submit')
 
     match(
-      css: '.content.active .main select[name="group_ids"]',
+      css:   '.content.active .main select[name="group_ids"]',
       value: 'Users',
     )
     match(
-      css: '.content.active .main input[name="webhook"]',
+      css:   '.content.active .main input[name="webhook"]',
       value: 'http://some_url/webhook/123',
     )
     match(
-      css: '.content.active .main input[name="username"]',
+      css:   '.content.active .main input[name="username"]',
       value: 'someuser',
     )
 
@@ -128,35 +127,35 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/slack"]')
 
     match(
-      css: '.content.active .main select[name="group_ids"]',
+      css:   '.content.active .main select[name="group_ids"]',
       value: 'Users',
     )
     match(
-      css: '.content.active .main input[name="webhook"]',
+      css:   '.content.active .main input[name="webhook"]',
       value: 'http://some_url/webhook/123',
     )
     match(
-      css: '.content.active .main input[name="username"]',
+      css:   '.content.active .main input[name="username"]',
       value: 'someuser',
     )
 
     reload()
 
     match(
-      css: '.content.active .main select[name="group_ids"]',
+      css:   '.content.active .main select[name="group_ids"]',
       value: 'Users',
     )
     match(
-      css: '.content.active .main input[name="webhook"]',
+      css:   '.content.active .main input[name="webhook"]',
       value: 'http://some_url/webhook/123',
     )
     match(
-      css: '.content.active .main input[name="username"]',
+      css:   '.content.active .main input[name="username"]',
       value: 'someuser',
     )
 
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'off',
     )
   end
@@ -166,7 +165,7 @@ class IntegrationTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -176,19 +175,19 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/clearbit"]')
     sleep 2
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'on',
     )
     set(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: 'some_api_key',
     )
     set(
-      css: '.content.active .main .js-userSync .js-new [name="source"]',
+      css:   '.content.active .main .js-userSync .js-new [name="source"]',
       value: 'source1',
     )
     set(
-      css: '.content.active .main .js-userSync .js-new [name="destination"]',
+      css:   '.content.active .main .js-userSync .js-new [name="destination"]',
       value: 'destination1',
     )
     click(css: '.content.active .main .js-userSync .js-add')
@@ -200,7 +199,7 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/clearbit"]')
 
     match(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: 'some_api_key',
     )
     exists(
@@ -213,7 +212,7 @@ class IntegrationTest < TestCase
     reload()
 
     match(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: 'some_api_key',
     )
     exists(
@@ -224,23 +223,23 @@ class IntegrationTest < TestCase
     )
 
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'off',
     )
 
     set(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: '-empty-',
     )
     click(css: '.content.active .main .js-submit')
 
     reload()
     match_not(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: 'some_api_key',
     )
     match(
-      css: '.content.active .main input[name="api_key"]',
+      css:   '.content.active .main input[name="api_key"]',
       value: '-empty-',
     )
     exists(
@@ -256,7 +255,7 @@ class IntegrationTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -266,25 +265,25 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/icinga"]')
     sleep 2
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'on',
     )
     set(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'some@othersender.com',
     )
     select(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'no',
     )
     click(css: '.content.active .main .js-submit')
 
     match(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'some@othersender.com',
     )
     match(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'no',
     )
 
@@ -294,45 +293,45 @@ class IntegrationTest < TestCase
     click(css: 'a[href="#system/integration/icinga"]')
 
     match(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'some@othersender.com',
     )
     match(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'no',
     )
 
     reload()
 
     match(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'some@othersender.com',
     )
     match(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'no',
     )
 
     switch(
-      css: '.content.active .main .js-switch',
+      css:  '.content.active .main .js-switch',
       type: 'off',
     )
     set(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'icinga@monitoring.example.com',
     )
     select(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'yes',
     )
     click(css: '.content.active .main .js-submit')
 
     match(
-      css: '.content.active .main input[name="icinga_sender"]',
+      css:   '.content.active .main input[name="icinga_sender"]',
       value: 'icinga@monitoring.example.com',
     )
     match(
-      css: '.content.active .main select[name="icinga_auto_close"]',
+      css:   '.content.active .main select[name="icinga_auto_close"]',
       value: 'yes',
     )
   end

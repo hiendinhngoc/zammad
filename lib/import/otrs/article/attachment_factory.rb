@@ -3,8 +3,6 @@ module Import
     class Article
       module AttachmentFactory
         extend Import::Helper
-
-        # rubocop:disable Style/ModuleFunction
         extend self
 
         def import(args)
@@ -12,6 +10,7 @@ module Import
           local_article = args[:local_article]
 
           return if skip_import?(attachments, local_article)
+
           perform_import(attachments, local_article)
         end
 
@@ -36,11 +35,11 @@ module Import
             log "Ticket #{local_article.ticket_id}, Article #{local_article.id} - Starting import for fingerprint #{sha} (#{decoded_filename})... Queue: #{@sha_queue[sha]}."
             ActiveRecord::Base.transaction do
               Store.add(
-                object:      'Ticket::Article',
-                o_id:        local_article.id,
-                filename:    decoded_filename.force_encoding('utf-8'),
-                data:        decoded_content,
-                preferences: {
+                object:        'Ticket::Article',
+                o_id:          local_article.id,
+                filename:      decoded_filename.force_encoding('utf-8'),
+                data:          decoded_content,
+                preferences:   {
                   'Mime-Type'           => attachment['ContentType'],
                   'Content-ID'          => attachment['ContentID'],
                   'content-alternative' => attachment['ContentAlternative'],
@@ -65,9 +64,11 @@ module Import
         def skip_import?(attachments, local_article)
           local_attachments = local_article.attachments
           return true if local_attachments.count == attachments.count
+
           # get a common ground
           local_attachments.each(&:delete)
           return true if attachments.blank?
+
           false
         end
 
@@ -79,6 +80,7 @@ module Import
           @sha_queue[sha] ||= []
 
           return if !queueing_active?
+
           @sha_queue[sha].push(queue_id)
 
           while @sha_queue[sha].first != queue_id
@@ -90,11 +92,13 @@ module Import
 
         def queue_cleanup(sha)
           return if !queueing_active?
+
           @sha_queue[sha].shift
         end
 
         def queueing_active?
           return if !queue_id
+
           true
         end
 

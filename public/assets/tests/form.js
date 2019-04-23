@@ -26,6 +26,8 @@ test("form elements check", function() {
     datetime1: Date.parse('2015-01-11T12:40:00Z'),
     checkbox1: [],
     checkbox2: '1',
+    boolean1: true,
+    boolean2: false,
   }
   new App.ControllerForm({
     el:        el,
@@ -49,6 +51,9 @@ test("form elements check", function() {
         { name: 'datetime2', display: 'Datetime2', tag: 'datetime', null: false, default: defaults['datetime2'] },
         { name: 'checkbox1', display: 'Checkbox1', tag: 'checkbox', null: false, default: defaults['checkbox1'], options: { a: 'AA', b: 'BB' } },
         { name: 'checkbox2', display: 'Checkbox2', tag: 'checkbox', null: false, default: defaults['checkbox2'], options: { 1: '11' } },
+        { name: 'boolean1',  display: 'Boolean1',  tag: 'boolean',  null: false, default: defaults['boolean1'] },
+        { name: 'boolean2',  display: 'Boolean2',  tag: 'boolean',  null: false, default: defaults['boolean2'] },
+        { name: 'boolean3',  display: 'Boolean3',  tag: 'boolean',  null: false, default: defaults['boolean3'] },
       ]
     },
     autofocus: true
@@ -108,6 +113,9 @@ test("form elements check", function() {
   equal(el.find('[name="checkbox1"]').last().is(":checked"), false)
   equal(el.find('[name="checkbox2"]').is(":checked"), true)
 
+  equal(el.find('[name="boolean1"]').val(), 'true')
+  equal(el.find('[name="boolean1"]').val(), 'true')
+  equal(el.find('[name="boolean2"]').val(), 'false')
 });
 
 test("form params check", function() {
@@ -147,6 +155,8 @@ test("form params check", function() {
     checkbox3: 'd',
     radiobox1: undefined,
     radiobox2: 'a',
+    boolean1:  true,
+    boolean2:  false,
   }
   new App.ControllerForm({
     el:        el,
@@ -192,6 +202,9 @@ test("form params check", function() {
         { name: 'checkbox4', display: 'Checkbox4', tag: 'checkbox', null: false, default: defaults['checkbox4'], options: { aa: 'AA', bb: 'BB' } },
         { name: 'radiobox1', display: 'Radiobox1', tag: 'radio', null: false, default: defaults['radiobox1'], options: { a: 'AA', b: 'BB' } },
         { name: 'radiobox2', display: 'Radiobox2', tag: 'radio', null: false, default: defaults['radiobox2'], options: { a: '11' } },
+        { name: 'boolean1',  display: 'Boolean1',  tag: 'boolean',  null: false, default: defaults['boolean1'] },
+        { name: 'boolean2',  display: 'Boolean2',  tag: 'boolean',  null: false, default: defaults['boolean2'] },
+        { name: 'boolean3',  display: 'Boolean3',  tag: 'boolean',  null: false, default: defaults['boolean3'] },
       ],
     },
     params: defaults,
@@ -281,13 +294,13 @@ test("form params check", function() {
     richtext7: '',
     richtext8: '<div>lalu <i>b</i> lalu</div>',
     datetime1: '2015-01-11T12:40:00.000Z',
-    datetime2: undefined,
+    datetime2: null,
     datetime3: '2015-01-11T12:40:00.000Z',
-    datetime4: undefined,
+    datetime4: null,
     date1: '2015-01-11',
-    date2: undefined,
+    date2: null,
     date3: '2015-01-11',
-    date4: undefined,
+    date4: null,
     active1: true,
     active2: false,
     checkbox1: [],
@@ -296,6 +309,9 @@ test("form params check", function() {
     checkbox4: [],
     radiobox1: undefined,
     radiobox2: 'a',
+    boolean1: true,
+    boolean2: false,
+    boolean3: true,
   }
   deepEqual(params, test_params, 'form param check')
 
@@ -518,13 +534,13 @@ test("form dependend fields check", function() {
     selectmulti2: [ "true", "false" ],
     selectmultioption1: "false",
     datetime1: '2015-01-11T12:40:00.000Z',
-    datetime2: undefined,
+    datetime2: null,
     datetime3: '2015-01-11T12:40:00.000Z',
-    datetime4: undefined,
+    datetime4: null,
     date1: '2015-01-11',
-    date2: undefined,
+    date2: null,
     date3: '2015-01-11',
-    date4: undefined,
+    date4: null,
   }
   deepEqual(params, test_params, 'form param check')
 
@@ -547,13 +563,13 @@ test("form dependend fields check", function() {
     selectmulti2: [ "true", "false" ],
     selectmultioption1: "false",
     datetime1: null,
-    datetime2: undefined,
+    datetime2: null,
     datetime3: '2015-01-11T12:40:00.000Z',
-    datetime4: undefined,
+    datetime4: null,
     date1: '2015-01-11',
-    date2: undefined,
+    date2: null,
     date3: '2015-01-11',
-    date4: undefined,
+    date4: null,
   }
   deepEqual(params, test_params, 'form param check')
 });
@@ -697,13 +713,6 @@ test("form handler check with and without fieldset", function() {
 
 test("form postmaster filter", function() {
 
-// check match area
-
-// check set area
-
-// add match rule
-
-// add set rule
   App.TicketPriority.refresh([
     {
       id:   1,
@@ -753,6 +762,10 @@ test("form postmaster filter", function() {
       },
       'x-zammad-ticket-priority_id': {
         value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
       }
     },
   }
@@ -796,44 +809,120 @@ test("form postmaster filter", function() {
       },
       'x-zammad-ticket-priority_id': {
         value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
       }
     },
   };
   deepEqual(params, test_params, 'form param check')
+
   el.find('[name="set::x-zammad-ticket-priority_id::value"]').closest('.js-filterElement').find('.js-remove').click()
   el.find('[name="set::x-zammad-ticket-customer_id::value"]').closest('.js-filterElement').find('.js-remove').click()
-  App.Delay.set(function() {
-      test("form param check after remove click", function() {
-        params = App.ControllerForm.params(el)
-        test_params = {
-          input1: 'some not used default',
-          input2: 'some name',
-          match: {
-            from: {
-              operator: 'contains',
-              value: 'some@address'
-            },
-            subject: {
-              operator: 'contains',
-              value: 'some subject'
-            }
-          },
-          set: {
-            'x-zammad-ticket-owner_id': {
-              value: 'owner',
-              value_completion: ''
-            },
-            'x-zammad-ticket-group_id': {
-              value: '1'
-            },
-          },
-        };
-        deepEqual(params, test_params, 'form param check')
-      });
-    },
-    1000
-  );
 
+  params = App.ControllerForm.params(el)
+  test_params = {
+    input1: 'some not used default',
+    input2: 'some name',
+    match: {
+      from: {
+        operator: 'contains',
+        value: 'some@address'
+      },
+      subject: {
+        operator: 'contains',
+        value: 'some subject'
+      }
+    },
+    set: {
+      'x-zammad-ticket-owner_id': {
+        value: 'owner',
+        value_completion: ''
+      },
+      'x-zammad-ticket-group_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
+      },
+    },
+  };
+  deepEqual(params, test_params, 'form param check')
+
+  el.find('.postmaster_set .js-filterElement').last().find('.filter-controls .js-add').click()
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    input1: 'some not used default',
+    input2: 'some name',
+    match: {
+      from: {
+        operator: 'contains',
+        value: 'some@address'
+      },
+      subject: {
+        operator: 'contains',
+        value: 'some subject'
+      }
+    },
+    set: {
+      'x-zammad-ticket-owner_id': {
+        value: 'owner',
+        value_completion: ''
+      },
+      'x-zammad-ticket-group_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-priority_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
+      },
+    },
+  };
+  deepEqual(params, test_params, 'form param check')
+
+  App.Delay.set(function() {
+    test("form postmaster filter - needed to do delayed because of tag ui", function() {
+      el.find('[name="set::x-zammad-ticket-tags::value"]').closest('.js-filterElement').find('.token .close').last().click()
+      params = App.ControllerForm.params(el)
+      test_params = {
+        input1: 'some not used default',
+        input2: 'some name',
+        match: {
+          from: {
+            operator: 'contains',
+            value: 'some@address'
+          },
+          subject: {
+            operator: 'contains',
+            value: 'some subject'
+          }
+        },
+        set: {
+          'x-zammad-ticket-owner_id': {
+            value: 'owner',
+            value_completion: ''
+          },
+          'x-zammad-ticket-group_id': {
+            value: '1'
+          },
+          'x-zammad-ticket-priority_id': {
+            value: '1'
+          },
+          'x-zammad-ticket-tags': {
+            operator: 'add',
+            value: 'test'
+          },
+        },
+      };
+      deepEqual(params, test_params, 'form param check')
+    })
+  }, 500);
 });
 
 test("form selector", function() {
@@ -995,5 +1084,487 @@ test("form params check direct", function() {
   //console.log('params', params)
   //console.log('test_params', test_params)
   deepEqual(params, test_params, 'form param check')
+});
+
+test("object manager form 1", function() {
+
+  $('#forms').append('<hr><h1>object manager 1</h1><form id="form11"></form>')
+  var el = $('#form11')
+
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'data_type',  display: 'Format', tag: 'object_manager_attribute', null: false },
+      ],
+    },
+    params: $.extend(defaults, { object: 'Ticket' }),
+    autofocus: true
+  });
+
+  var params = App.ControllerForm.params(el)
+  var test_params = {
+    data_option: {
+      default: "",
+      maxlength: 120,
+      type: "text"
+    },
+    data_type: "input",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      }
+    }
+  }
+
+  deepEqual(params, test_params, 'form param check')
+
+  el.find('[name=data_type]').val('datetime').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  var test_params = {
+    data_option: {
+      diff: 24,
+      future: true,
+      past: true
+    },
+    data_type: "datetime",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      }
+    }
+  }
+  deepEqual(params, test_params, 'form param check')
+
+});
+
+test("object manager form 2", function() {
+
+  $('#forms').append('<hr><h1>object manager 2</h1><form id="form12"></form>')
+  var el = $('#form12')
+
+  var defaults = {
+    id: 123,
+    data_option: {
+      default: "",
+      maxlength: 120,
+      type: "text"
+    },
+    data_type: "input",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+      }
+    }
+  }
+
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'data_type',  display: 'Format', tag: 'object_manager_attribute', null: false },
+      ],
+    },
+    params: $.extend(defaults, { object: 'Ticket' }),
+    autofocus: true
+  });
+
+  var params = App.ControllerForm.params(el)
+  var test_params = {
+    data_option: {
+      default: "",
+      maxlength: 120,
+      type: "text"
+    },
+    data_type: "input",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: false,
+          required: false,
+        }
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: false,
+          required: false,
+        }
+      }
+    }
+  }
+
+  deepEqual(params, test_params, 'form param check')
+
+});
+
+test("object manager form 3", function() {
+
+  $('#forms').append('<hr><h1>object manager 3</h1><form id="form13"></form>')
+  var el = $('#form13')
+
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'data_type',  display: 'Format', tag: 'object_manager_attribute', null: false },
+      ],
+    },
+    params: $.extend(defaults, { object: 'Ticket' }),
+    autofocus: true
+  });
+
+  var params = App.ControllerForm.params(el)
+  var test_params = {
+    data_option: {
+      default: "",
+      maxlength: 120,
+      type: "text"
+    },
+    data_type: "input",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: true,
+          required: false,
+        }
+      }
+    }
+  }
+
+  deepEqual(params, test_params, 'form param check')
+
+  el.find('[name="screens::create_middle::ticket.customer::shown"]').click()
+  el.find('[name="screens::edit::ticket.customer::shown"]').click()
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    data_option: {
+      default: "",
+      maxlength: 120,
+      type: "text"
+    },
+    data_type: "input",
+    screens: {
+      create_middle: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: false,
+          required: false,
+        }
+      },
+      edit: {
+        "ticket.agent": {
+          shown: true,
+          required: false,
+        },
+        "ticket.customer": {
+          shown: false,
+          required: false,
+        }
+      }
+    }
+  }
+  deepEqual(params, test_params, 'form param check')
+
+});
+
+test("check if select value is not existing but is shown", function() {
+
+  $('#forms').append('<hr><h1>check if select value is not existing but is shown</h1><form id="form17"></form>')
+  var el = $('#form17')
+  var defaults = {
+    select1: 'NOT EXISTING',
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'NOT EXISTING',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('NOT EXISTING', el.find('[name=select1] option')[4].text)
+  equal('XX', el.find('[name=select1] option')[5].text)
+
+});
+
+test("check if select value is not existing and is not shown", function() {
+
+  $('#forms').append('<hr><h1>check if select value is not existing and is not shown</h1><form id="form18"></form>')
+  var el = $('#form18')
+  var defaults = {
+    select1: 'NOT EXISTING',
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+    rejectNonExistentValues: true,
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'XY',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('XX', el.find('[name=select1] option')[4].text)
+
+});
+
+test("time range form 1", function() {
+
+  $('#forms').append('<hr><h1>time range form 1</h1><form id="form14"></form>')
+  var el = $('#form14')
+
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'time_range',  display: 'Format', tag: 'time_range', null: false },
+      ],
+    },
+    params: $.extend(defaults, { object: 'Ticket' }),
+    autofocus: true
+  });
+
+  var params = App.ControllerForm.params(el)
+  var test_params = {
+    "time_range": {
+      "range": "minute",
+      "value": "1"
+    }
+  }
+
+  deepEqual(params, test_params, 'base form param range check')
+
+  el.find('.js-range').val('minute').trigger('change')
+  el.find('.js-valueRangeSelector .js-value').val('120').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    "time_range": {
+      "range": "minute",
+      "value": "120"
+    }
+  }
+  deepEqual(params, test_params, 'form param minute range check')
+
+  el.find('.js-range').val('hour').trigger('change')
+  el.find('.js-valueRangeSelector .js-value').val('48').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    "time_range": {
+      "range": "hour",
+      "value": "48"
+    }
+  }
+  deepEqual(params, test_params, 'form param hour range check')
+
+  el.find('.js-range').val('day').trigger('change')
+  el.find('.js-valueRangeSelector .js-value').val('31').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    "time_range": {
+      "range": "day",
+      "value": "31"
+    }
+  }
+  deepEqual(params, test_params, 'form param day range check')
+
+  el.find('.js-range').val('month').trigger('change')
+  el.find('.js-valueRangeSelector .js-value').val('12').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    "time_range": {
+      "range": "month",
+      "value": "12"
+    }
+  }
+  deepEqual(params, test_params, 'form param month range check')
+
+  el.find('.js-range').val('year').trigger('change')
+  el.find('.js-valueRangeSelector .js-value').val('20').trigger('change')
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    "time_range": {
+      "range": "year",
+      "value": "20"
+    }
+  }
+  deepEqual(params, test_params, 'form param year range check')
+});
+
+test("form select with empty option list", function() {
+
+  $('#forms').append('<hr><h1>form select with empty option list</h1><form id="form15"></form>')
+  var el = $('#form15')
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: '', options: {}, relation: '', maxlength: 255 },
+        { name: 'select2', display: 'Select2', tag: 'select', null: true, default: '', options: {}, relation: '', maxlength: 255, nulloption: true },
+        { name: 'select3', display: 'Select3', tag: 'select', null: true, default: '', options: { undefined: 'A', null: 'B'} },
+        { name: 'select4', display: 'Select4', tag: 'select', null: true, default: '', options: { 'A': undefined, 'B': null} },
+        { name: 'select5', display: 'Select5', tag: 'select', null: true, default: 'A', options: { 'A': undefined, 'B': null} },
+        { name: 'select6', display: 'Select6', tag: 'select', null: true, default: undefined, options: { 'A': undefined, 'B': null} },
+      ],
+    },
+    params: defaults,
+    autofocus: true
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select2: '',
+    select3: 'undefined',
+    select4: 'B',
+    select5: 'A',
+    select6: 'B',
+  }
+  deepEqual(params, test_params)
+});
+
+test("form elements with sort check", function() {
+
+  $('#forms').append('<hr><h1>form elements with sort check</h1><form id="form16"></form>')
+  var el = $('#form16')
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+        { name: 'checkbox1', display: 'Checkbox1', tag: 'checkbox', null: false, default: 'A', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+        { name: 'radio1', display: 'Radio1', tag: 'radio', null: false, default: 'A', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+    autofocus: true
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'XY',
+    checkbox1: 'A',
+    radio1: 'A',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('XX', el.find('[name=select1] option')[4].text)
+
+  equal('XX', el.find('[name=checkbox1]')[0].value)
+  equal('', el.find('[name=checkbox1]')[1].value)
+  equal('XY', el.find('[name=checkbox1]')[2].value)
+  equal('B', el.find('[name=checkbox1]')[3].value)
+  equal('A', el.find('[name=checkbox1]')[4].value)
+
+  equal('XX', el.find('[name=radio1]')[0].value)
+  equal('', el.find('[name=radio1]')[1].value)
+  equal('XY', el.find('[name=radio1]')[2].value)
+  equal('B', el.find('[name=radio1]')[3].value)
+  equal('A', el.find('[name=radio1]')[4].value)
 
 });

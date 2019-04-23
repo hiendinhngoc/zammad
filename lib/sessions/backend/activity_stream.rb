@@ -1,5 +1,7 @@
 class Sessions::Backend::ActivityStream
 
+  attr_writer :user
+
   def initialize(user, asset_lookup, client = nil, client_id = nil, ttl = 25)
     @user         = user
     @client       = client
@@ -26,7 +28,22 @@ class Sessions::Backend::ActivityStream
       @last_change = activity_stream.first['created_at']
     end
 
-    @user.activity_stream(25, true)
+    assets = {}
+    item_ids = []
+    activity_stream.each do |item|
+      begin
+        assets = item.assets(assets)
+      rescue ActiveRecord::RecordNotFound
+        next
+      end
+
+      item_ids.push item.id
+    end
+
+    {
+      record_ids: item_ids,
+      assets:     assets,
+    }
   end
 
   def client_key
@@ -48,17 +65,17 @@ class Sessions::Backend::ActivityStream
 
     if !@client
       return {
-        event: 'activity_stream_rebuild',
+        event:      'activity_stream_rebuild',
         collection: 'activity_stream',
-        data: data,
+        data:       data,
       }
     end
 
     @client.log "push activity_stream #{data.first.class} for user #{@user.id}"
     @client.send(
-      event: 'activity_stream_rebuild',
+      event:      'activity_stream_rebuild',
       collection: 'activity_stream',
-      data: data,
+      data:       data,
     )
   end
 

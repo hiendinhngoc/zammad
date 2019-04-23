@@ -3,6 +3,7 @@ class App.ControllerGenericNew extends App.ControllerModal
   buttonCancel: true
   buttonSubmit: true
   headPrefix: 'New'
+  showTrySupport: true
 
   content: =>
     @head = @pageData.head || @pageData.object
@@ -97,6 +98,7 @@ class App.ControllerGenericIndex extends App.Controller
   events:
     'click [data-type=edit]': 'edit'
     'click [data-type=new]': 'new'
+    'click [data-type=import]': 'import'
     'click .js-description': 'description'
 
   constructor: ->
@@ -129,6 +131,14 @@ class App.ControllerGenericIndex extends App.Controller
         ->
         clear: true
       )
+
+  show: =>
+    if @table
+      @table.show()
+
+  hide: =>
+    if @table
+      @table.hide()
 
   release: =>
     if @subscribeId
@@ -216,6 +226,10 @@ class App.ControllerGenericIndex extends App.Controller
       large:         @large
     )
 
+  import: (e) ->
+    e.preventDefault()
+    @importCallback()
+
   description: (e) =>
     new App.ControllerGenericDescription(
       description: App[ @genericObject ].description
@@ -236,6 +250,7 @@ class App.ControllerGenericDescription extends App.ControllerModal
 
 class App.ControllerModalLoading extends App.Controller
   className: 'modal fade'
+  showTrySupport: true
 
   constructor: ->
     super
@@ -245,11 +260,14 @@ class App.ControllerModalLoading extends App.Controller
 
     @render()
 
-    @el.modal
+    @el.modal(
       keyboard:  false
       show:      true
       backdrop:  'static'
       container: @container
+    ).on(
+      'hidden.bs.modal': @localOnClosed
+    )
 
   render: ->
     @html App.view('generic/modal_loader')(
@@ -268,9 +286,12 @@ class App.ControllerModalLoading extends App.Controller
   showIcon: =>
     @$('.js-loadingIcon').removeClass('hide')
 
+  localOnClosed: =>
+    @el.remove()
+
   hide: (delay) =>
     remove = =>
-      @el.remove()
+      @el.modal('hide')
     if !delay
       remove()
       return
@@ -279,7 +300,7 @@ class App.ControllerModalLoading extends App.Controller
 class App.ControllerGenericDestroyConfirm extends App.ControllerModal
   buttonClose: true
   buttonCancel: true
-  buttonSubmit: 'yes'
+  buttonSubmit: 'delete'
   buttonClass: 'btn--danger'
   head: 'Confirm'
   small: true
@@ -288,15 +309,15 @@ class App.ControllerGenericDestroyConfirm extends App.ControllerModal
     App.i18n.translateContent('Sure to delete this object?')
 
   onSubmit: =>
-    @item.destroy(
-      done: =>
-        @close()
-        if @callback
-          @callback()
-      fail: =>
-        @log 'errors'
-        @close()
-    )
+    options = @options || {}
+    options.done = =>
+      @close()
+      if @callback
+        @callback()
+    options.fail = =>
+      @log 'errors'
+      @close()
+    @item.destroy(options)
 
 class App.ControllerConfirm extends App.ControllerModal
   buttonClose: true
@@ -322,6 +343,7 @@ class App.ControllerErrorModal extends App.ControllerModal
   head: 'Error'
   #small: true
   #shown: true
+  showTrySupport: true
 
   content: ->
     @message
@@ -363,6 +385,18 @@ class App.ControllerTabs extends App.Controller
       if !@permissionCheckRedirect(@requiredPermission)
         throw "No permission for #{@requiredPermission}"
 
+  show: =>
+    return if !@controllerList
+    for localeController in @controllerList
+      if localeController && localeController.show
+        localeController.show()
+
+  hide: =>
+    return if !@controllerList
+    for localeController in @controllerList
+      if localeController && localeController.hide
+        localeController.hide()
+
   render: ->
     @html App.view('generic/tabs')(
       header: @header
@@ -378,8 +412,9 @@ class App.ControllerTabs extends App.Controller
         params = tab.params || {}
         params.name = tab.name
         params.target = tab.target
-        params.el = @$( "##{tab.target}" )
-        new tab.controller( params )
+        params.el = @$("##{tab.target}")
+        @controllerList ||= []
+        @controllerList.push new tab.controller(params)
 
     # check if tabs need to be show / cant' use .tab(), because tabs are note shown (only one tab exists)
     if @tabs.length <= 1
@@ -404,8 +439,6 @@ class App.ControllerNavSidbar extends App.Controller
     if @authenticateRequired
       @authenticateCheckRedirect()
 
-    @user = App.User.find(App.Session.get('id'))
-
     @render(true)
 
     @bind('ui:rerender',
@@ -414,12 +447,13 @@ class App.ControllerNavSidbar extends App.Controller
         @updateNavigation(true)
     )
 
-  show: (params) =>
+  show: (params = {}) =>
     @navupdate ''
     @shown = true
-    for key, value of params
-      if key isnt 'el' && key isnt 'shown' && key isnt 'match'
-        @[key] = value
+    if params
+      for key, value of params
+        if key isnt 'el' && key isnt 'shown' && key isnt 'match'
+          @[key] = value
     @updateNavigation()
     if @activeController && _.isFunction(@activeController.show)
       @activeController.show(params)
@@ -465,7 +499,7 @@ class App.ControllerNavSidbar extends App.Controller
         else
           match = false
           for permissionName in item.permission
-            if !match && @user.permission(permissionName)
+            if !match && @permissionCheck(permissionName)
               match = true
               groupsUnsorted.push item
     _.sortBy(groupsUnsorted, (item) -> return item.prio)
@@ -484,7 +518,7 @@ class App.ControllerNavSidbar extends App.Controller
             else
               match = false
               for permissionName in item.permission
-                if !match && @user && @user.permission(permissionName)
+                if !match && @permissionCheck(permissionName)
                   match = true
                   itemsUnsorted.push item
 
@@ -537,6 +571,9 @@ class App.ControllerNavSidbar extends App.Controller
       sidebar: @$('.sidebar').scrollTop()
 
 class App.GenericHistory extends App.ControllerModal
+  @extend App.PopoverProvidable
+  @registerPopovers 'User'
+
   buttonClose: true
   buttonCancel: false
   buttonSubmit: false
@@ -560,7 +597,7 @@ class App.GenericHistory extends App.ControllerModal
     content
 
   onShown: =>
-    @userPopups()
+    @renderPopovers()
 
   sortorder: =>
     @items = @items.reverse()
@@ -601,6 +638,14 @@ class App.GenericHistory extends App.ControllerModal
       content = ''
       if item.type is 'notification' || item.type is 'email'
         content = "#{ @T( item.type ) } #{ @T( 'sent to' ) } '#{ item.value_to }'"
+      else if item.type is 'received_merge'
+        ticket = App.Ticket.find( item.id_from )
+        ticket_link = "<a href=\"#ticket/zoom/#{ item.id_from }\">##{ ticket.number }</a>"
+        content = "#{ @T( 'Ticket' ) } #{ ticket_link } #{ @T( 'was merged into this ticket' ) }"
+      else if item.type is 'merged_into'
+        ticket = App.Ticket.find( item.id_to )
+        ticket_link = "<a href=\"#ticket/zoom/#{ item.id_to }\">##{ ticket.number }</a>"
+        content = "#{ @T( 'This ticket was merged into' ) } #{ @T( 'ticket' ) } #{ ticket_link }"
       else
         content = "#{ @T( item.type ) } #{ @T(item.object) } "
         if item.attribute
@@ -1171,7 +1216,7 @@ class App.CollectionController extends App.Controller
 
 class App.ObserverController extends App.Controller
   model: 'Ticket'
-  template: 'ticket_zoom/title'
+  template: 'tba'
   globalRerender: true
 
   ###
@@ -1251,3 +1296,178 @@ class App.ObserverController extends App.Controller
     #console.trace()
     @log 'debug', 'release', @object_id, @model, @subscribeId
     App[@model].unsubscribe(@subscribeId)
+
+class App.ObserverActionRow extends App.ObserverController
+  constructor: ->
+    super
+
+  render: (object) =>
+    return if _.isEmpty(object)
+    actions = @actions(object)
+    @html App.view('generic/actions')(
+      items: actions
+      type:  @type
+    )
+
+    for item in actions
+      do (item) =>
+        @$("[data-type=\"#{item.name}\"]").on(
+          'click'
+          (e) ->
+            e.preventDefault()
+            item.callback(object)
+        )
+
+class App.Import extends App.ControllerModal
+  buttonClose: true
+  buttonCancel: true
+  buttonSubmit: 'Import'
+  autoFocusOnFirstInput: false
+  head: 'Import'
+  large: true
+  templateDirectory: 'generic/object_import'
+  baseUrl: '/api/v1/text_modules'
+
+  content: =>
+
+    # show start dialog
+    content = $(App.view("#{@templateDirectory}/index")(
+      head: 'Import'
+      import_example_url: "#{@baseUrl}/import_example"
+      deleteOption: @deleteOption
+    ))
+
+    # check if data is processing...
+    if @data
+      result = App.view("#{@templateDirectory}/result")(
+        @data
+      )
+      content.find('.js-error').html(result)
+      if result
+        content.find('.js-error').removeClass('hide')
+      else
+        content.find('.js-error').addClass('hide')
+    content
+
+  onSubmit: (e) =>
+    params = new FormData($(e.currentTarget).closest('form').get(0))
+    params.set('try', true)
+    if _.isEmpty(params.get('data'))
+      params.delete('data')
+    @formDisable(e)
+    @ajax(
+      id:          'csv_import'
+      type:        'POST'
+      url:         "#{@baseUrl}/import"
+      processData: false
+      contentType: false
+      cache:       false
+      data:        params
+      success:     (data, status, xhr) =>
+        if data.result is 'success'
+          new App.ImportTryResult(
+            container: @el.closest('.content')
+            result: data
+            params: params
+            templateDirectory: @templateDirectory
+            baseUrl: @baseUrl
+          )
+          @close()
+          return
+        @data = data
+        @update()
+        @formEnable(e)
+      error: (data) =>
+        details = data.responseJSON || {}
+        @notify
+          type:    'error'
+          msg:     App.i18n.translateContent(details.error_human || details.error || 'Unable to import!')
+          timeout: 6000
+        @formEnable(e)
+    )
+
+class App.ImportTryResult extends App.ControllerModal
+  buttonClose: true
+  buttonCancel: true
+  buttonSubmit: 'Yes, start real import.'
+  autoFocusOnFirstInput: false
+  head: 'Import'
+  large: true
+  templateDirectory: 'generic/object_import/'
+  baseUrl: '/api/v1/text_modules'
+
+  content: =>
+
+    # show start dialog
+    content = $(App.view("#{@templateDirectory}/import_try")(
+      head: 'Import'
+      import_example_url: "#{@baseUrl}/import"
+      result: @result
+    ))
+
+    # check if data is processing...
+    if @data
+      result = App.view("#{@templateDirectory}/result")(
+        @data
+      )
+      content.find('.js-error').html(result)
+      if result
+        content.find('.js-error').removeClass('hide')
+      else
+        content.find('.js-error').addClass('hide')
+
+    content
+
+  onSubmit: (e) =>
+    @params.set('try', false)
+    @formDisable(e)
+    @ajax(
+      id:          'csv_import'
+      type:        'POST'
+      url:         "#{@baseUrl}/import"
+      processData: false
+      contentType: false
+      cache:       false
+      data:        @params
+      success:     (data, status, xhr) =>
+        if data.result is 'success'
+          new App.ImportResult(
+            container: @el.closest('.content')
+            result: data
+            params: @params
+            templateDirectory: @templateDirectory
+            baseUrl: @baseUrl
+          )
+          @close()
+          return
+        @data = data
+        @update()
+        @formEnable(e)
+      error: (data) =>
+        details = data.responseJSON || {}
+        @notify
+          type:    'error'
+          msg:     App.i18n.translateContent(details.error_human || details.error || 'Unable to import!')
+          timeout: 6000
+        @formEnable(e)
+    )
+
+class App.ImportResult extends App.ControllerModal
+  buttonClose: true
+  buttonCancel: true
+  buttonSubmit: 'Close'
+  autoFocusOnFirstInput: false
+  head: 'Import'
+  large: true
+  templateDirectory: 'generic/object_import/'
+
+  content: =>
+
+    content = $(App.view("#{@templateDirectory}/imported")(
+      head: 'Imported'
+      result: @result
+    ))
+    content
+
+  onSubmit: (e) =>
+    @close()

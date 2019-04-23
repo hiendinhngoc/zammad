@@ -1,6 +1,6 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
-class Store
+class Store < ApplicationModel
   class File < ApplicationModel
     include ApplicationLib
     after_destroy :destroy_provider
@@ -28,11 +28,12 @@ do also verify of written data
         if !adapter_name
           raise 'Missing storage_provider setting option'
         end
-        adapter = load_adapter("Store::Provider::#{adapter_name}")
+
+        adapter = "Store::Provider::#{adapter_name}".constantize
         adapter.add(data, sha)
         file = Store::File.create(
           provider: adapter_name,
-          sha: sha,
+          sha:      sha,
         )
 
         # verify
@@ -58,8 +59,7 @@ read content of a file
 =end
 
     def content
-      adapter = self.class.load_adapter("Store::Provider::#{provider}")
-      adapter.get(sha)
+      "Store::Provider::#{provider}".constantize.get(sha)
     end
 
 =begin
@@ -85,6 +85,7 @@ in case of fixing sha hash use:
         sha = Digest::SHA256.hexdigest(content)
         logger.info "CHECK: Store::File.find(#{item.id})"
         next if sha == item.sha
+
         success = false
         logger.error "DIFF: sha diff of Store::File.find(#{item.id}) current:#{sha}/db:#{item.sha}/provider:#{item.provider}"
         store = Store.find_by(store_file_id: item.id)
@@ -115,13 +116,14 @@ nice move to keep system responsive
 =end
 
     def self.move(source, target, delay = nil)
-      adapter_source = load_adapter("Store::Provider::#{source}")
-      adapter_target = load_adapter("Store::Provider::#{target}")
+      adapter_source = "Store::Provider::#{source}".constantize
+      adapter_target = "Store::Provider::#{target}".constantize
 
       file_ids = Store::File.all.pluck(:id)
       file_ids.each do |item_id|
         item = Store::File.find(item_id)
         next if item.provider == target
+
         content = item.content
 
         # add to new provider
@@ -143,8 +145,7 @@ nice move to keep system responsive
     private
 
     def destroy_provider
-      adapter = self.class.load_adapter("Store::Provider::#{provider}")
-      adapter.delete(sha)
+      "Store::Provider::#{provider}".constantize.delete(sha)
     end
   end
 end

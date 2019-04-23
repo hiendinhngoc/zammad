@@ -2,24 +2,24 @@
 # in the importer folder require AND simultaniuos requiring
 # of the same file in different threads so we need to
 # require them ourself
-require 'import/otrs/ticket'
-require 'import/otrs/ticket_factory'
-require 'import/otrs/article_customer'
-require 'import/otrs/article_customer_factory'
-require 'import/otrs/article'
-require 'import/otrs/article_factory'
-require 'import/otrs/article/attachment_factory'
-require 'import/otrs/history'
-require 'import/otrs/history_factory'
-require 'import/otrs/history/article'
-require 'import/otrs/history/move'
-require 'import/otrs/history/new_ticket'
-require 'import/otrs/history/priority_update'
-require 'import/otrs/history/state_update'
-require 'store'
-require 'store/object'
-require 'store/provider/db'
-require 'store/provider/file'
+require_dependency 'import/otrs/ticket'
+require_dependency 'import/otrs/ticket_factory'
+require_dependency 'import/otrs/article_customer'
+require_dependency 'import/otrs/article_customer_factory'
+require_dependency 'import/otrs/article'
+require_dependency 'import/otrs/article_factory'
+require_dependency 'import/otrs/article/attachment_factory'
+require_dependency 'import/otrs/history'
+require_dependency 'import/otrs/history_factory'
+require_dependency 'import/otrs/history/article'
+require_dependency 'import/otrs/history/move'
+require_dependency 'import/otrs/history/new_ticket'
+require_dependency 'import/otrs/history/priority_update'
+require_dependency 'import/otrs/history/state_update'
+require_dependency 'store'
+require_dependency 'store/object'
+require_dependency 'store/provider/db'
+require_dependency 'store/provider/file'
 
 module Import
   module OTRS
@@ -27,8 +27,6 @@ module Import
     extend Import::OTRS::ImportStats
     extend Import::OTRS::Async
     extend Import::OTRS::Diff
-
-    # rubocop:disable Style/ModuleFunction
     extend self
 
     def start
@@ -135,6 +133,7 @@ module Import
     def imported?(args)
       log "loading #{args[:limit]} #{args[:remote_object]} starting at #{args[:offset]}..."
       return false if !import_action(args[:remote_object], limit: args[:limit], offset: args[:offset], diff: args[:diff])
+
       true
     end
 

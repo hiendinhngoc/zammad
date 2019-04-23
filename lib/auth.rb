@@ -23,6 +23,7 @@ returns
     return false if !user.active?
 
     return true if !user.max_login_failed?
+
     Rails.logger.info "Max login failed reached for user #{user.login}."
 
     false
@@ -96,6 +97,7 @@ returns
     # added configured backends
     Setting.where(area: 'Security::Authentication').each do |setting|
       next if setting.state_current[:value].blank?
+
       config.push setting.state_current[:value]
     end
 
@@ -105,11 +107,7 @@ returns
   def self.backend_validates?(config:, user:, password:)
     return false if !config[:adapter]
 
-    # load backend
-    backend = load_adapter(config[:adapter])
-    return false if !backend
-
-    instance = backend.new(config)
+    instance = config[:adapter].constantize.new(config)
 
     instance.valid?(user, password)
   end

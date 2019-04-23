@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
@@ -9,32 +8,32 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
 
     groups = Group.where(name: 'Users')
     roles  = Role.where(name: 'Agent')
-    agent1 = User.create_or_update(
-      login: 'notification-template-agent1@example.com',
-      firstname: 'Notification<b>xxx</b>',
-      lastname: 'Agent1<b>yyy</b>',
-      email: 'notification-template-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
-      preferences: {
+    agent1 = User.create!(
+      login:         'notification-template-agent1@example.com',
+      firstname:     'Notification<b>xxx</b>',
+      lastname:      'Agent1<b>yyy</b>',
+      email:         'notification-template-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
+      preferences:   {
         locale: 'de-de',
       },
       updated_by_id: 1,
       created_by_id: 1,
     )
 
-    agent_current_user = User.create_or_update(
-      login: 'notification-template-current_user@example.com',
-      firstname: 'Notification Current',
-      lastname: 'User',
-      email: 'notification-template-current_user@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
-      preferences: {
+    agent_current_user = User.create!(
+      login:         'notification-template-current_user@example.com',
+      firstname:     'Notification Current',
+      lastname:      'User',
+      email:         'notification-template-current_user@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
+      preferences:   {
         locale: 'de-de',
       },
       updated_by_id: 1,
@@ -43,34 +42,34 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
 
     result = NotificationFactory::Mailer.template(
       template: 'password_reset',
-      locale: 'de-de',
+      locale:   'de-de',
       objects:  {
         user: agent1,
       },
     )
-    assert_match('Zurücksetzen Deines', result[:subject])
+    assert_match('Zurücksetzen Ihres', result[:subject])
     assert_match('wir haben eine Anfrage zum Zurücksetzen', result[:body])
-    assert_match('Dein', result[:body])
-    assert_match('Dein', result[:body])
+    assert_match('Ihr', result[:body])
+    assert_match('Ihr', result[:body])
     assert_match('Notification&lt;b&gt;xxx&lt;/b&gt;', result[:body])
     assert_no_match('Your', result[:body])
 
     result = NotificationFactory::Mailer.template(
       template: 'password_reset',
-      locale: 'de',
+      locale:   'de',
       objects:  {
         user: agent1,
       },
     )
-    assert_match('Zurücksetzen Deines', result[:subject])
+    assert_match('Zurücksetzen Ihres', result[:subject])
     assert_match('wir haben eine Anfrage zum Zurücksetzen', result[:body])
-    assert_match('Dein', result[:body])
+    assert_match('Ihr', result[:body])
     assert_match('Notification&lt;b&gt;xxx&lt;/b&gt;', result[:body])
     assert_no_match('Your', result[:body])
 
     result = NotificationFactory::Mailer.template(
       template: 'password_reset',
-      locale: 'es-us',
+      locale:   'xx-us',
       objects:  {
         user: agent1,
       },
@@ -79,27 +78,27 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     assert_match('We received a request to reset the password', result[:body])
     assert_match('Your', result[:body])
     assert_match('Notification&lt;b&gt;xxx&lt;/b&gt;', result[:body])
-    assert_no_match('Dein', result[:body])
+    assert_no_match('Ihr', result[:body])
 
     ticket = Ticket.create(
-      group_id: Group.lookup(name: 'Users').id,
-      customer_id: User.lookup(email: 'nicole.braun@zammad.org').id,
-      owner_id: User.lookup(login: '-').id,
-      title: 'Welcome to Zammad!',
-      state_id: Ticket::State.lookup(name: 'new').id,
-      priority_id: Ticket::Priority.lookup(name: '2 normal').id,
+      group_id:      Group.lookup(name: 'Users').id,
+      customer_id:   User.lookup(email: 'nicole.braun@zammad.org').id,
+      owner_id:      User.lookup(login: '-').id,
+      title:         'Welcome to Zammad!',
+      state_id:      Ticket::State.lookup(name: 'new').id,
+      priority_id:   Ticket::Priority.lookup(name: '2 normal').id,
       updated_by_id: 1,
       created_by_id: 1,
     )
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.lookup(name: 'phone').id,
-      sender_id: Ticket::Article::Sender.lookup(name: 'Customer').id,
-      from: 'Zammad Feedback <feedback@zammad.org>',
-      content_type: 'text/plain',
-      body: 'Welcome!
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.lookup(name: 'phone').id,
+      sender_id:     Ticket::Article::Sender.lookup(name: 'Customer').id,
+      from:          'Zammad Feedback <feedback@zammad.org>',
+      content_type:  'text/plain',
+      body:          'Welcome!
 <b>test123</b>',
-      internal: false,
+      internal:      false,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -107,13 +106,13 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     changes = {}
     result = NotificationFactory::Mailer.template(
       template: 'ticket_create',
-      locale: 'es-us',
+      locale:   'xx-us',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('New Ticket', result[:subject])
@@ -127,13 +126,13 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
 
     result = NotificationFactory::Mailer.template(
       template: 'ticket_create',
-      locale: 'de-de',
+      locale:   'de-de',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Neues Ticket', result[:subject])
@@ -146,14 +145,14 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     assert_match('Current User', result[:body])
 
     article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.lookup(name: 'phone').id,
-      sender_id: Ticket::Article::Sender.lookup(name: 'Customer').id,
-      from: 'Zammad Feedback <feedback@zammad.org>',
-      content_type: 'text/html',
-      body: 'Welcome!
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.lookup(name: 'phone').id,
+      sender_id:     Ticket::Article::Sender.lookup(name: 'Customer').id,
+      from:          'Zammad Feedback <feedback@zammad.org>',
+      content_type:  'text/html',
+      body:          'Welcome!
 <b>test123</b>',
-      internal: false,
+      internal:      false,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -163,13 +162,13 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     }
     result = NotificationFactory::Mailer.template(
       template: 'ticket_update',
-      locale: 'es-us',
+      locale:   'xx-us',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Updated Ticket', result[:subject])
@@ -183,13 +182,13 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
 
     result = NotificationFactory::Mailer.template(
       template: 'ticket_update',
-      locale: 'de-de',
+      locale:   'de-de',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Ticket aktualisiert', result[:subject])
@@ -205,11 +204,11 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     result = NotificationFactory::Mailer.template(
       template: 'ticket_update',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Ticket aktualisiert', result[:subject])
@@ -225,11 +224,11 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     result = NotificationFactory::Mailer.template(
       template: 'ticket_update',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Updated Ticket', result[:subject])
@@ -245,11 +244,11 @@ class NotificationFactoryMailerTemplateTest < ActiveSupport::TestCase
     result = NotificationFactory::Mailer.template(
       template: 'ticket_update',
       objects:  {
-        ticket: ticket,
-        article: article,
-        recipient: agent1,
+        ticket:       ticket,
+        article:      article,
+        recipient:    agent1,
         current_user: agent_current_user,
-        changes: changes,
+        changes:      changes,
       },
     )
     assert_match('Chamado atualizado', result[:subject])

@@ -7,6 +7,7 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
     @ttl          = ttl
     @asset_lookup = asset_lookup
     @backends     = backend
+    @time_now     = Time.zone.now.to_i
   end
 
   def push
@@ -22,18 +23,28 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
     results
   end
 
+  def user=(user)
+    @user = user
+
+    # update stored user in backends, too
+    @backends.each do |backend|
+      backend.user = user
+    end
+  end
+
   def backend
 
     # auto population collections
     backends = []
 
     # load collections to deliver from external files
-    dir = File.expand_path('../../../../', __FILE__)
+    dir = File.expand_path('../../..', __dir__)
     files = Dir.glob("#{dir}/lib/sessions/backend/collections/*.rb")
     files.each do |file|
       file.gsub!("#{dir}/lib/", '')
       file.gsub!(/\.rb$/, '')
       next if file.classify == 'Sessions::Backend::Collections::Base'
+
       #puts "LOAD #{file.classify}---"
       #next if file == ''
       backend = file.classify.constantize.new(@user, @asset_lookup, @client, @client_id, @ttl)

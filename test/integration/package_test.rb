@@ -1,15 +1,13 @@
-
-require 'test_helper'
+require 'integration_test_helper'
 
 class PackageTest < ActiveSupport::TestCase
-  self.use_transactional_tests = false
 
   test 'packages' do
     tests = [
 
       # test 1 - normal install
       {
-        zpm: '{
+        zpm:    '{
   "name": "UnitTestSample",
   "version": "1.0.1",
   "vendor": "Znuny GmbH",
@@ -42,22 +40,22 @@ class PackageTest < ActiveSupport::TestCase
         action: 'install',
         result: true,
         verify: {
-          package: {
-            name: 'UnitTestSample',
+          package:     {
+            name:    'UnitTestSample',
             version: '1.0.1',
           },
           check_files: [
             {
               location: 'test.txt',
-              result: true,
+              result:   true,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'some/dir/test.txt',
-              result: true,
+              result:   true,
             },
           ],
         },
@@ -66,25 +64,25 @@ class PackageTest < ActiveSupport::TestCase
       # test 2 - renstall
       {
         action: 'reinstall',
-        name: 'UnitTestSample',
+        name:   'UnitTestSample',
         result: true,
         verify: {
-          package: {
-            name: 'UnitTestSample',
+          package:     {
+            name:    'UnitTestSample',
             version: '1.0.1',
           },
           check_files: [
             {
               location: 'test.txt',
-              result: true,
+              result:   true,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'some/dir/test.txt',
-              result: true,
+              result:   true,
             },
           ],
         },
@@ -92,7 +90,7 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 3 - try to install same package again / should not work
       {
-        zpm: '{
+        zpm:    '{
   "name": "UnitTestSample",
   "version": "1.0.1",
   "vendor": "Znuny GmbH",
@@ -118,7 +116,7 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 4 - try to install lower version / should not work
       {
-        zpm: '{
+        zpm:    '{
   "name": "UnitTestSample",
   "version": "1.0.0",
   "vendor": "Znuny GmbH",
@@ -144,7 +142,7 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 5 - upgrade 7 should work
       {
-        zpm: '{
+        zpm:    '{
   "name": "UnitTestSample",
   "version": "1.0.2",
   "vendor": "Znuny GmbH",
@@ -177,26 +175,26 @@ class PackageTest < ActiveSupport::TestCase
         action: 'install',
         result: true,
         verify: {
-          package: {
-            name: 'UnitTestSample',
+          package:     {
+            name:    'UnitTestSample',
             version: '1.0.2',
           },
           check_files: [
             {
               location: 'test.txt2',
-              result: true,
+              result:   true,
             },
             {
               location: 'test.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'some/dir/test.txt2',
-              result: true,
+              result:   true,
             },
           ],
         },
@@ -204,19 +202,19 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 6 - uninstall package / should work
       {
-        name: 'UnitTestSample',
+        name:    'UnitTestSample',
         version: '1.0.2',
-        action: 'uninstall',
-        result: true,
-        verify: {
+        action:  'uninstall',
+        result:  true,
+        verify:  {
           check_files: [
             {
               location: 'test.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
           ],
         },
@@ -224,7 +222,7 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 7 - check auto_install mechanism
       {
-        zpm: '{
+        zpm:    '{
   "name": "UnitTestSample",
   "version": "1.0.2",
   "vendor": "Znuny GmbH",
@@ -257,26 +255,26 @@ class PackageTest < ActiveSupport::TestCase
         action: 'auto_install',
         result: true,
         verify: {
-          package: {
-            name: 'UnitTestSample',
+          package:     {
+            name:    'UnitTestSample',
             version: '1.0.2',
           },
           check_files: [
             {
               location: 'test.txt2',
-              result: true,
+              result:   true,
             },
             {
               location: 'test.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'some/dir/test.txt2',
-              result: true,
+              result:   true,
             },
           ],
         },
@@ -284,19 +282,19 @@ class PackageTest < ActiveSupport::TestCase
 
       # test 8 - check uninstall / should work
       {
-        name: 'UnitTestSample',
+        name:    'UnitTestSample',
         version: '1.0.2',
-        action: 'uninstall',
-        result: true,
-        verify: {
+        action:  'uninstall',
+        result:  true,
+        verify:  {
           check_files: [
             {
               location: 'test.txt',
-              result: false,
+              result:   false,
             },
             {
               location: 'test2.txt',
-              result: false,
+              result:   false,
             },
           ],
         },
@@ -313,9 +311,9 @@ class PackageTest < ActiveSupport::TestCase
         if test[:result]
           assert(package, 'install package not successful')
           issues = package.verify
-          assert(!issues, 'package verify not successful')
+          assert_not(issues, 'package verify not successful')
         else
-          assert(!package, 'install package successful but should not')
+          assert_not(package, 'install package successful but should not')
         end
       elsif test[:action] == 'reinstall'
         begin
@@ -326,9 +324,9 @@ class PackageTest < ActiveSupport::TestCase
         if test[:result]
           assert(package, 'reinstall package not successful')
           issues = package.verify
-          assert(!issues, 'package verify not successful')
+          assert_not(issues, 'package verify not successful')
         else
-          assert(!package, 'reinstall package successful but should not')
+          assert_not(package, 'reinstall package successful but should not')
         end
       elsif test[:action] == 'uninstall'
         if test[:zpm]
@@ -347,7 +345,7 @@ class PackageTest < ActiveSupport::TestCase
         if test[:result]
           assert(package, 'uninstall package not successful')
         else
-          assert(!package, 'uninstall package successful but should not')
+          assert_not(package, 'uninstall package successful but should not')
         end
       elsif test[:action] == 'auto_install'
         if test[:zpm]
@@ -380,7 +378,7 @@ class PackageTest < ActiveSupport::TestCase
         if item[:result]
           assert(exists, "'#{item[:location]}' exists" )
         else
-          assert(!exists, "'#{item[:location]}' doesn't exists" )
+          assert_not(exists, "'#{item[:location]}' doesn't exists" )
         end
       end
     end

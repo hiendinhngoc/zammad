@@ -9,9 +9,9 @@ module Channel::Filter::IdentifySender
     if customer_user_id.present?
       customer_user = User.lookup(id: customer_user_id)
       if customer_user
-        Rails.logger.debug "Took customer form x-zammad-ticket-customer_id header '#{customer_user_id}'."
+        Rails.logger.debug { "Took customer form x-zammad-ticket-customer_id header '#{customer_user_id}'." }
       else
-        Rails.logger.debug "Invalid x-zammad-ticket-customer_id header '#{customer_user_id}', no such user - take user from 'from'-header."
+        Rails.logger.debug { "Invalid x-zammad-ticket-customer_id header '#{customer_user_id}', no such user - take user from 'from'-header." }
       end
     end
 
@@ -38,9 +38,9 @@ module Channel::Filter::IdentifySender
               next if EmailAddress.find_by(email: item.address.downcase)
 
               customer_user = user_create(
-                login: item.address,
+                login:     item.address,
                 firstname: item.display_name,
-                email: item.address,
+                email:     item.address,
               )
               break
             end
@@ -54,10 +54,10 @@ module Channel::Filter::IdentifySender
     # take regular from as customer
     if !customer_user
       customer_user = user_create(
-        login: mail[ 'x-zammad-customer-login'.to_sym ] || mail[ 'x-zammad-customer-email'.to_sym ] || mail[:from_email],
+        login:     mail[ 'x-zammad-customer-login'.to_sym ] || mail[ 'x-zammad-customer-email'.to_sym ] || mail[:from_email],
         firstname: mail[ 'x-zammad-customer-firstname'.to_sym ] || mail[:from_display_name],
-        lastname: mail[ 'x-zammad-customer-lastname'.to_sym ],
-        email: mail[ 'x-zammad-customer-email'.to_sym ] || mail[:from_email],
+        lastname:  mail[ 'x-zammad-customer-lastname'.to_sym ],
+        email:     mail[ 'x-zammad-customer-email'.to_sym ] || mail[:from_email],
       )
     end
 
@@ -70,17 +70,17 @@ module Channel::Filter::IdentifySender
     if session_user_id.present?
       session_user = User.lookup(id: session_user_id)
       if session_user
-        Rails.logger.debug "Took session form x-zammad-session-user-id header '#{session_user_id}'."
+        Rails.logger.debug { "Took session form x-zammad-session-user-id header '#{session_user_id}'." }
       else
-        Rails.logger.debug "Invalid x-zammad-session-user-id header '#{session_user_id}', no such user - take user from 'from'-header."
+        Rails.logger.debug { "Invalid x-zammad-session-user-id header '#{session_user_id}', no such user - take user from 'from'-header." }
       end
     end
     if !session_user
       session_user = user_create(
-        login: mail[:from_email],
+        login:     mail[:from_email],
         firstname: mail[:from_display_name],
-        lastname: '',
-        email: mail[:from_email],
+        lastname:  '',
+        email:     mail[:from_email],
       )
     end
     if session_user
@@ -96,18 +96,21 @@ module Channel::Filter::IdentifySender
     current_count = 0
     ['raw-to', 'raw-cc'].each do |item|
       next if mail[item.to_sym].blank?
+
       begin
         items = mail[item.to_sym].addrs
         next if items.blank?
+
         items.each do |address_data|
           email_address = address_data.address
           next if email_address.blank?
           next if email_address !~ /@/
           next if email_address.match?(/\s/)
+
           user_create(
             firstname: address_data.display_name,
-            lastname: '',
-            email: email_address,
+            lastname:  '',
+            email:     email_address,
           )
           current_count += 1
           return false if current_count == max_count
@@ -131,10 +134,11 @@ module Channel::Filter::IdentifySender
           next if address.blank?
           next if address !~ /@/
           next if address.match?(/\s/)
+
           user_create(
             firstname: display_name,
-            lastname: '',
-            email: address,
+            lastname:  '',
+            email:     address,
           )
           current_count += 1
           return false if current_count == max_count
@@ -143,59 +147,57 @@ module Channel::Filter::IdentifySender
     end
   end
 
-  def self.user_create(data, role_ids = nil)
-    if data[:email] !~ /@/
-      data[:email] += '@local'
-    end
-    user = User.find_by(email: data[:email].downcase)
-    if !user
-      user = User.find_by(login: data[:email].downcase)
-    end
+  def self.user_create(attrs, role_ids = nil)
+    populate_attributes!(attrs, role_ids: role_ids)
 
-    # check if firstname or lastname need to be updated
-    if user
-      if user.firstname.blank? && user.lastname.blank?
-        if data[:firstname].present?
-          data[:firstname] = cleanup_name(data[:firstname])
-          user.update!(
-            firstname: data[:firstname]
-          )
-        end
-      end
-      return user
+    if (user = User.find_by('email = :email OR login = :email', attrs))
+      user.update!(attrs.slice(:firstname)) if user.no_name? && attrs[:firstname].present?
+    elsif (user = User.create!(attrs))
+      user.update!(updated_by_id: user.id, created_by_id: user.id)
     end
 
-    # create new user
-    role_ids ||= Role.signup_role_ids
-
-    # fillup
-    %w[firstname lastname].each do |item|
-      if data[item.to_sym].nil?
-        data[item.to_sym] = ''
-      end
-      data[item.to_sym] = cleanup_name(data[item.to_sym])
-    end
-    data[:password]      = ''
-    data[:active]        = true
-    data[:role_ids]      = role_ids
-    data[:updated_by_id] = 1
-    data[:created_by_id] = 1
-
-    user = User.create!(data)
-    user.update!(
-      updated_by_id: user.id,
-      created_by_id: user.id,
-    )
     user
   end
 
-  def self.cleanup_name(string)
-    string.strip!
-    string.delete!('"')
-    string.gsub!(/^'/, '')
-    string.gsub!(/'$/, '')
-    string.gsub!(/.+?\s\(.+?\)$/, '')
-    string
+  def self.populate_attributes!(attrs, **extras)
+    if attrs[:email].match?(/\S\s+\S/) || attrs[:email].match?(/^<|>$/)
+      attrs[:preferences] = { mail_delivery_failed:        true,
+                              mail_delivery_failed_reason: 'invalid email',
+                              mail_delivery_failed_data:   Time.zone.now }
+    end
+
+    attrs.merge!(
+      email:         sanitize_email(attrs[:email]),
+      firstname:     sanitize_name(attrs[:firstname]),
+      lastname:      sanitize_name(attrs[:lastname]),
+      password:      '',
+      active:        true,
+      role_ids:      extras[:role_ids] || Role.signup_role_ids,
+      updated_by_id: 1,
+      created_by_id: 1
+    )
+  end
+
+  def self.sanitize_name(string)
+    return '' if string.nil?
+
+    string.strip
+          .delete('"')
+          .gsub(/^'/, '')
+          .gsub(/'$/, '')
+          .gsub(/.+?\s\(.+?\)$/, '')
+  end
+
+  def self.sanitize_email(string)
+    string += '@local' if !string.include?('@')
+
+    string.downcase
+          .strip
+          .delete('"')
+          .delete(' ')             # see https://github.com/zammad/zammad/issues/2254
+          .sub(/^<|>$/, '')        # see https://github.com/zammad/zammad/issues/2254
+          .sub(/\A'(.*)'\z/, '\1') # see https://github.com/zammad/zammad/issues/2154
+          .gsub(/\s/, '')          # see https://github.com/zammad/zammad/issues/2198
   end
 
 end

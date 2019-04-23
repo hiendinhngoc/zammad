@@ -1,26 +1,29 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
 class CalendarsController < ApplicationController
-  prepend_before_action { authentication_check(permission: 'admin.calendar') }
+  prepend_before_action -> { authentication_check(permission: 'admin.calendar') }, only: %i[init index show create update destroy]
+  prepend_before_action -> { authentication_check(permission: 'admin') }, only: %i[timezones]
 
-  def index
-
-    # calendars
+  def init
     assets = {}
-    calendar_ids = []
+    record_ids = []
     Calendar.all.order(:name, :created_at).each do |calendar|
-      calendar_ids.push calendar.id
+      record_ids.push calendar.id
       assets = calendar.assets(assets)
     end
 
     ical_feeds = Calendar.ical_feeds
     timezones = Calendar.timezones
     render json: {
-      calendar_ids: calendar_ids,
+      record_ids: record_ids,
       ical_feeds: ical_feeds,
-      timezones: timezones,
-      assets: assets,
+      timezones:  timezones,
+      assets:     assets,
     }, status: :ok
+  end
+
+  def index
+    model_index_render(Calendar, params)
   end
 
   def show
@@ -37,6 +40,12 @@ class CalendarsController < ApplicationController
 
   def destroy
     model_destroy_render(Calendar, params)
+  end
+
+  def timezones
+    render json: {
+      timezones: Calendar.timezones
+    }
   end
 
 end

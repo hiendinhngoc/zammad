@@ -1,18 +1,19 @@
 Macro.create_if_not_exists(
-  name: 'Close & Tag as Spam',
-  perform: {
+  name:            'Close & Tag as Spam',
+  perform:         {
     'ticket.state_id' => {
       value: Ticket::State.by_category(:closed).first.id,
     },
-    'ticket.tags' => {
+    'ticket.tags'     => {
       operator: 'add',
-      value: 'spam',
+      value:    'spam',
     },
     'ticket.owner_id' => {
       pre_condition: 'current_user.id',
-      value: '',
+      value:         '',
     },
   },
-  note: 'example macro',
-  active: true,
+  ux_flow_next_up: 'next_task',
+  note:            'example macro',
+  active:          true,
 )

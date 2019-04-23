@@ -20,12 +20,23 @@ class App.ControllerForm extends App.Controller
     if !@attributes
       @attributes = []
 
+    @idPrefix = Math.floor( Math.random() * 999999 ).toString()
+    if @model.className
+      @idPrefix = "#{@model.className}_#{@idPrefix}"
+
     # set empty class attributes if needed
     if !@form
       @form = @formGen()
 
     # add alert placeholder
-    @form.prepend('<div class="alert alert--danger js-alert hide" role="alert"></div>')
+    @form.prepend('<div class="alert alert--danger js-danger js-alert hide" role="alert"></div>')
+    @form.prepend('<div class="alert alert--success js-success hide" role="alert"></div>')
+
+    if @handlers
+      params = App.ControllerForm.params(@form)
+      for attribute in @attributes
+        for handler in @handlers
+          handler(params, attribute, @attributes, @idPrefix, @form, @)
 
     # if element is given, prepend form to it
     if @el
@@ -35,12 +46,6 @@ class App.ControllerForm extends App.Controller
     if @elReplace
       @elReplace.html(@form)
 
-    # trigger change to rebuild shown/hidden item and update sub selections
-    if typeof @form is 'object'
-      @form.find('input').trigger('change')
-      @form.find('textarea').trigger('change')
-      @form.find('select').trigger('change')
-
     # remove alert on input
     @form.on('input', @hideAlert)
 
@@ -48,10 +53,10 @@ class App.ControllerForm extends App.Controller
     @form
 
   showAlert: (message) =>
-    @form.find('.alert').first().removeClass('hide').html(App.i18n.translateInline(message))
+    @form.find('.alert--danger').first().removeClass('hide').html(App.i18n.translateInline(message))
 
   hideAlert: =>
-    @form.find('.alert').addClass('hide').html()
+    @form.find('.alert--danger').addClass('hide').html()
 
   html: =>
     @form.html()
@@ -86,17 +91,16 @@ class App.ControllerForm extends App.Controller
 
         @attributes.push attribute
 
-    attribute_count = 0
-    className       = @model.className + '_' + Math.floor( Math.random() * 999999 ).toString()
+    attributeCount = 0
 
     for attribute in @attributes
-      attribute_count = attribute_count + 1
+      attributeCount = attributeCount + 1
 
       if @isDisabled == true
         attribute.disabled = true
 
       # add item
-      item = @formGenItem(attribute, className, fieldset, attribute_count)
+      item = @formGenItem(attribute, @idPrefix, fieldset, attributeCount)
       item.appendTo(fieldset)
 
       # if password, add confirm password item
@@ -111,7 +115,7 @@ class App.ControllerForm extends App.Controller
         if !attribute.single
           attribute.display = attribute.display + ' (confirm)'
           attribute.name = attribute.name + '_confirm'
-          item = @formGenItem(attribute, className, fieldset, attribute_count)
+          item = @formGenItem(attribute, @idPrefix, fieldset, attributeCount)
           item.appendTo(fieldset)
 
     if @fullForm
@@ -124,7 +128,7 @@ class App.ControllerForm extends App.Controller
       for eventSelector, callback of @events
         do (eventSelector, callback) ->
           evs = eventSelector.split(' ')
-          fieldset.find( evs[1] ).bind( evs[0], (e) -> callback(e) )
+          fieldset.find(evs[1]).bind(evs[0], (e) -> callback(e))
 
     # bind tool tips
     fieldset.find('.js-helpMessage').tooltip()
@@ -203,20 +207,19 @@ class App.ControllerForm extends App.Controller
     class:      'medium'
   }
 
-
   ###
 
-  formGenItem: (attribute_config, classname, form, attribute_count) ->
+  formGenItem: (attribute_config, idPrefix, form, attributeCount) ->
     attribute = clone(attribute_config, true)
 
     # create item id
-    attribute.id = "#{classname}_#{attribute.name}"
+    attribute.id = "#{idPrefix}_#{attribute.name}"
 
     # set label class name
     attribute.label_class = @model.labelClass
 
     # set autofocus
-    if @autofocus && attribute_count is 1
+    if @autofocus && attributeCount is 1
       attribute.autofocus = 'autofocus'
 
     # set required option
@@ -259,6 +262,10 @@ class App.ControllerForm extends App.Controller
       if attribute.name of @params
         attribute.value = @params[attribute.name]
 
+    # set new value
+    if 'newValue' of attribute
+      attribute.value = attribute.newValue
+
     App.Log.debug 'ControllerForm', 'formGenItem-before', attribute
 
     if App.UiElement[attribute.tag]
@@ -276,13 +283,13 @@ class App.ControllerForm extends App.Controller
         for item in attribute.options
           if item.value && item.value isnt ''
             attributesNew.value = item.value
-        item = $( App.view('generic/input')( attribute: attributesNew ) )
+        item = $( App.view('generic/input')(attribute: attributesNew) )
 
     if @handlers
       item.bind('change', (e) =>
-        params = App.ControllerForm.params( $(e.target) )
+        params = App.ControllerForm.params($(e.target))
         for handler in @handlers
-          handler(params, attribute, @attributes, classname, form, @)
+          handler(params, attribute, @attributes, idPrefix, form, @)
       )
 
     # bind dependency
@@ -326,7 +333,7 @@ class App.ControllerForm extends App.Controller
           bookmarkable: @bookmarkable
         )
       )
-      fullItem.find('.controls').prepend( item )
+      fullItem.find('.controls').prepend(item)
 
       # hide/show item
       if attribute.hide
@@ -371,7 +378,7 @@ class App.ControllerForm extends App.Controller
       el.find('[name="' + key + '"]').attr('required', false)
       el.find('[name="' + key + '"]').parents('.form-group').find('label span').html('')
 
-  showHideToggle: (params, changedAttribute, attributes, classname, form, ui) ->
+  showHideToggle: (params, changedAttribute, attributes, _classname, form, ui) ->
     for attribute in attributes
       if attribute.shown_if
         hit = false
@@ -384,26 +391,26 @@ class App.ControllerForm extends App.Controller
             else if params[refAttribute].toString() is refValue.toString()
               hit = true
         if hit
-          ui.show(attribute.name)
+          ui.show(attribute.name, form)
         else
-          ui.hide(attribute.name)
+          ui.hide(attribute.name, form)
 
-  requiredMandantoryToggle: (params, changedAttribute, attributes, classname, form, ui) ->
+  requiredMandantoryToggle: (params, changedAttribute, attributes, _classname, form, ui) ->
     for attribute in attributes
       if attribute.required_if
         hit = false
         for refAttribute, refValue of attribute.required_if
           if params[refAttribute]
-            if _.isArray( refValue )
+            if _.isArray(refValue)
               for item in refValue
                 if params[refAttribute].toString() is item.toString()
                   hit = true
             else if params[refAttribute].toString() is refValue.toString()
               hit = true
         if hit
-          ui.mandantory(attribute.name)
+          ui.mandantory(attribute.name, form)
         else
-          ui.optional(attribute.name)
+          ui.optional(attribute.name, form)
 
   validate: (params) ->
     App.Model.validate(
@@ -443,6 +450,8 @@ class App.ControllerForm extends App.Controller
       if item.type is 'boolean'
         if value is ''
           value = undefined
+        else if value is undefined
+          value = false
         else if value is 'true'
           value = true
         else if value is 'false'
@@ -463,21 +472,31 @@ class App.ControllerForm extends App.Controller
     # verify if we have not checked checkboxes
     uncheckParam = {}
     lookupForm.find('input[type=checkbox]').each( (index) ->
-      checked = $(@).attr('checked')
+      type = $(@).data('field-type')
+      checked = $(@).prop('checked')
       name = $(@).attr('name')
-      if name && !checked && (!(name of param) || param[name] is '')
+      if name && !checked && !(name of param)
         if !(name of uncheckParam)
-          uncheckParam[name] = undefined
+          if type is 'boolean'
+            uncheckParam[name] = false
+          else
+            uncheckParam[name] = undefined
         else
           uncheckParam[name] = []
+      true
     )
 
     # verify if we have not checked radios
     lookupForm.find('input[type=radio]').each( (index) ->
-      checked = $(@).attr('checked')
+      type = $(@).data('field-type')
+      checked = $(@).prop('checked')
       name = $(@).attr('name')
       if name && !checked && !(name of param)
-        uncheckParam[name] = undefined
+        if type is 'boolean'
+          uncheckParam[name] = false
+        else
+          uncheckParam[name] = undefined
+      true
     )
 
     # apply empty checkboxes & radio values to params
@@ -495,7 +514,7 @@ class App.ControllerForm extends App.Controller
           param[newKey] = null
         else if param[key]
           try
-            time = new Date( Date.parse( "#{param[key]}T00:00:00Z" ) )
+            time = new Date( Date.parse("#{param[key]}T00:00:00Z") )
             format = (number) ->
               if parseInt(number) < 10
                 number = "0#{number}"
@@ -507,7 +526,7 @@ class App.ControllerForm extends App.Controller
             param[newKey] = "invalid #{param[key]}"
             console.log('ERR', err)
         else
-          param[newKey] = undefined
+          param[newKey] = null
         delete param[key]
 
       # get {datetime}
@@ -517,7 +536,7 @@ class App.ControllerForm extends App.Controller
           param[newKey] = null
         else if param[key]
           try
-            time = new Date( Date.parse( param[key] ) )
+            time = new Date( Date.parse(param[key]) )
             if time is 'Invalid Datetime'
               throw "Invalid Datetime #{param[key]}"
             param[newKey] = time.toISOString().replace(/:\d\d\.\d\d\dZ$/, ':00.000Z')
@@ -525,7 +544,7 @@ class App.ControllerForm extends App.Controller
             param[newKey] = "invalid #{param[key]}"
             console.log('ERR', err)
         else
-          param[newKey] = undefined
+          param[newKey] = null
         delete param[key]
 
     # split :: fields, build objects
@@ -616,48 +635,48 @@ class App.ControllerForm extends App.Controller
       App.Log.error 'ControllerForm', 'no form found!', form
     form
 
-  @disable: (form) ->
+  @disable: (form, type = 'form') ->
     lookupForm = @findForm(form)
 
-    if lookupForm
+    if lookupForm && type is 'form'
       if lookupForm.is('button, input, select, textarea, div, span')
         App.Log.debug 'ControllerForm', 'disable item...', lookupForm
-        lookupForm.attr('readonly', true)
-        lookupForm.attr('disabled', true)
+        lookupForm.prop('readonly', true)
+        lookupForm.prop('disabled', true)
         return
       App.Log.debug 'ControllerForm', 'disable form...', lookupForm
 
       # set forms to read only during communication with backend
-      lookupForm.find('button, input, select, textarea').attr('readonly', true)
+      lookupForm.find('button, input, select, textarea').prop('readonly', true)
 
       # disable additionals submits
-      lookupForm.find('button').attr('disabled', true)
+      lookupForm.find('button').prop('disabled', true)
     else
       App.Log.debug 'ControllerForm', 'disable item...', form
-      form.attr('readonly', true)
-      form.attr('disabled', true)
+      form.prop('readonly', true)
+      form.prop('disabled', true)
 
-  @enable: (form) ->
+  @enable: (form, type = 'form') ->
 
     lookupForm = @findForm(form)
 
-    if lookupForm
+    if lookupForm && type is 'form'
       if lookupForm.is('button, input, select, textarea, div, span')
         App.Log.debug 'ControllerForm', 'disable item...', lookupForm
-        lookupForm.attr('readonly', false)
-        lookupForm.attr('disabled', false)
+        lookupForm.prop('readonly', false)
+        lookupForm.prop('disabled', false)
         return
       App.Log.debug 'ControllerForm', 'enable form...', lookupForm
 
       # enable fields again
-      lookupForm.find('button, input, select, textarea').attr('readonly', false)
+      lookupForm.find('button, input, select, textarea').prop('readonly', false)
 
       # enable submits again
-      lookupForm.find('button').attr('disabled', false)
+      lookupForm.find('button').prop('disabled', false)
     else
       App.Log.debug 'ControllerForm', 'enable item...', form
-      form.attr('readonly', false)
-      form.attr('disabled', false)
+      form.prop('readonly', false)
+      form.prop('disabled', false)
 
   @validate: (data) ->
 

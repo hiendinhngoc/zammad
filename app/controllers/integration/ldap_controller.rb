@@ -1,7 +1,7 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-require 'ldap'
-require 'ldap/user'
-require 'ldap/group'
+require_dependency 'ldap'
+require_dependency 'ldap/user'
+require_dependency 'ldap/group'
 
 class Integration::LdapController < ApplicationController
   include Integration::ImportJobBase
@@ -19,6 +19,7 @@ class Integration::LdapController < ApplicationController
       rescue => e
         # workaround for issue #1114
         raise if !e.message.end_with?(', 48, Inappropriate Authentication')
+
         # return empty result
         {}
       end
@@ -41,9 +42,9 @@ class Integration::LdapController < ApplicationController
         user_uid:        user.uid_attribute,
 
         # the order of these calls is relevant!
-        group_filter: group.filter,
-        groups:       group.list,
-        group_uid:    group.uid_attribute,
+        group_filter:    group.filter,
+        groups:          group.list,
+        group_uid:       group.uid_attribute,
       }
     end
   end

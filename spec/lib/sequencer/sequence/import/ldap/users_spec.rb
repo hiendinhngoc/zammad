@@ -6,7 +6,7 @@ RSpec.describe ::Sequencer::Sequence::Import::Ldap::Users, sequencer: :sequence 
 
     context 'config "unassigned_users": "skip_sync"' do
 
-      it 'disables user' do
+      it 'disables user', last_admin_check: false do
 
         user_entry                   = build(:ldap_entry)
         user_entry['objectguid']     = ['user1337']
@@ -18,11 +18,11 @@ RSpec.describe ::Sequencer::Sequence::Import::Ldap::Users, sequencer: :sequence 
 
         payload = {
           ldap_config: {
-            user_filter:    'user=filter',
-            group_role_map: {
+            user_filter:      'user=filter',
+            group_role_map:   {
               group_entry.dn => [1, 2]
             },
-            user_attributes: {
+            user_attributes:  {
               'first_name' => 'firstname',
             },
             user_uid:         'objectguid',
@@ -99,7 +99,7 @@ RSpec.describe ::Sequencer::Sequence::Import::Ldap::Users, sequencer: :sequence 
 
     context 'config "unassigned_users": nil / "sigup_roles"' do
 
-      it 'assigns signup roles' do
+      it 'assigns signup roles', last_admin_check: false do
 
         user_entry                   = build(:ldap_entry)
         user_entry['objectguid']     = ['user1337']
@@ -113,14 +113,14 @@ RSpec.describe ::Sequencer::Sequence::Import::Ldap::Users, sequencer: :sequence 
 
         payload = {
           ldap_config: {
-            user_filter:    'user=filter',
-            group_role_map: {
+            user_filter:     'user=filter',
+            group_role_map:  {
               group_entry.dn => agent_admin_role_ids
             },
             user_attributes: {
               'first_name' => 'firstname',
             },
-            user_uid: 'objectguid',
+            user_uid:        'objectguid',
           }
         }
 

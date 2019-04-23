@@ -62,7 +62,7 @@ returns
 
     Rails.logger.info "fetching pop3 (#{options[:host]}/#{options[:user]} port=#{port},ssl=#{ssl})"
 
-    @pop = Net::POP3.new(options[:host], port)
+    @pop = ::Net::POP3.new(options[:host], port)
     #@pop.set_debug_output $stderr
 
     # on check, reduce open_timeout to have faster probing
@@ -91,7 +91,7 @@ returns
         next if !mail
 
         # check how many content messages we have, for notice used
-        if mail !~ /x-zammad-ignore/i
+        if !mail.match?(/(X-Zammad-Ignore: true|X-Zammad-Verify: true)/)
           content_messages += 1
           break if content_max_check < content_messages
         end
@@ -101,7 +101,7 @@ returns
       end
       disconnect
       return {
-        result: 'ok',
+        result:           'ok',
         content_messages: content_messages,
       }
     end
@@ -112,12 +112,13 @@ returns
       mails.reverse!
 
       # check for verify message
-      mails.each do |m|
+      mails.first(2000).each do |m|
         mail = m.pop
         next if !mail
 
         # check if verify message exists
         next if mail !~ /#{verify_string}/
+
         Rails.logger.info " - verify email #{verify_string} found"
         m.delete
         disconnect
@@ -136,11 +137,27 @@ returns
     count         = 0
     count_fetched = 0
     notice        = ''
-    mails.each do |m|
+    mails.first(2000).each do |m|
       count += 1
       Rails.logger.info " - message #{count}/#{count_all}"
       mail = m.pop
       next if !mail
+
+      # ignore verify messages
+      if mail.match?(/(X-Zammad-Ignore: true|X-Zammad-Verify: true)/)
+        if mail =~ /X-Zammad-Verify-Time:\s(.+?)\s/
+          begin
+            verify_time = Time.zone.parse($1)
+            if verify_time > Time.zone.now - 30.minutes
+              info = "  - ignore message #{count}/#{count_all} - because it's a verify message"
+              Rails.logger.info info
+              next
+            end
+          rescue => e
+            Rails.logger.error e
+          end
+        end
+      end
 
       # ignore to big messages
       max_message_size = Setting.get('postmaster_max_size').to_f
@@ -163,9 +180,9 @@ returns
     end
     Rails.logger.info 'done'
     {
-      result: 'ok',
+      result:  'ok',
       fetched: count_fetched,
-      notice: notice,
+      notice:  notice,
     }
   end
 
@@ -196,6 +213,7 @@ returns
 
   def disconnect
     return if !@pop
+
     @pop.finish
   end
 

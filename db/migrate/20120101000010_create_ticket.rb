@@ -34,6 +34,8 @@ class CreateTicket < ActiveRecord::Migration[4.2]
     create_table :ticket_priorities do |t|
       t.column :name,                 :string, limit: 250, null: false
       t.column :default_create,       :boolean,            null: false, default: false
+      t.column :ui_icon,              :string, limit: 100, null: true
+      t.column :ui_color,             :string, limit: 100, null: true
       t.column :note,                 :string, limit: 250, null: true
       t.column :active,               :boolean,            null: false, default: true
       t.column :updated_by_id,        :integer,            null: false
@@ -87,9 +89,11 @@ class CreateTicket < ActiveRecord::Migration[4.2]
     add_index :tickets, [:group_id]
     add_index :tickets, [:owner_id]
     add_index :tickets, [:customer_id]
+    add_index :tickets, %i[customer_id state_id created_at]
     add_index :tickets, [:number], unique: true
     add_index :tickets, [:title]
     add_index :tickets, [:created_at]
+    add_index :tickets, [:updated_at]
     add_index :tickets, [:first_response_at]
     add_index :tickets, [:first_response_escalation_at]
     add_index :tickets, [:first_response_in_min]
@@ -111,6 +115,14 @@ class CreateTicket < ActiveRecord::Migration[4.2]
     add_index :tickets, [:pending_time]
     add_index :tickets, [:type]
     add_index :tickets, [:time_unit]
+    add_index :tickets, %i[group_id state_id]
+    add_index :tickets, %i[group_id state_id owner_id]
+    add_index :tickets, %i[group_id state_id updated_at]
+    add_index :tickets, %i[group_id state_id owner_id updated_at], name: 'index_tickets_on_group_id_state_id_owner_id_updated_at'
+    add_index :tickets, %i[group_id state_id created_at]
+    add_index :tickets, %i[group_id state_id owner_id created_at], name: 'index_tickets_on_group_id_state_id_owner_id_created_at'
+    add_index :tickets, %i[group_id state_id close_at]
+    add_index :tickets, %i[group_id state_id owner_id close_at], name: 'index_tickets_on_group_id_state_id_owner_id_close_at'
     add_foreign_key :tickets, :groups
     add_foreign_key :tickets, :users, column: :owner_id
     add_foreign_key :tickets, :users, column: :customer_id
@@ -237,6 +249,7 @@ class CreateTicket < ActiveRecord::Migration[4.2]
       t.column :condition,            :text, limit: 500.kilobytes + 1, null: false
       t.column :order,                :string,  limit: 2500,   null: false
       t.column :group_by,             :string,  limit: 250,    null: true
+      t.column :group_direction,      :string,  limit: 250,    null: true
       t.column :organization_shared,  :boolean,                null: false, default: false
       t.column :out_of_office,        :boolean,                null: false, default: false
       t.column :view,                 :string,  limit: 1000,   null: false
@@ -452,6 +465,7 @@ class CreateTicket < ActiveRecord::Migration[4.2]
       t.string  :name,                   limit: 250,    null: true
       t.text    :perform,                limit: 500.kilobytes + 1, null: false
       t.boolean :active,                                null: false, default: true
+      t.string  :ux_flow_next_up,                       null: false, default: 'none'
       t.string  :note,                   limit: 250,    null: true
       t.integer :updated_by_id,                         null: false
       t.integer :created_by_id,                         null: false

@@ -4,10 +4,15 @@ class Index extends App.ControllerSubContent
   constructor: ->
     super
 
-    new App.ControllerGenericIndex(
+    @genericController = new App.ControllerGenericIndex(
       el: @el
       id: @id
       genericObject: 'Organization'
+      importCallback: ->
+        new App.Import(
+          baseUrl: '/api/v1/organizations'
+          container: @el.closest('.content')
+        )
       pageData:
         home: 'organizations'
         object: 'Organization'
@@ -17,6 +22,7 @@ class Index extends App.ControllerSubContent
           'Organizations are for any person in the system. Agents (Owners, Resposbiles, ...) and Customers.'
         ]
         buttons: [
+          { name: 'Import', 'data-type': 'import', class: 'btn' }
           { name: 'New Organization', 'data-type': 'new', class: 'btn--success' }
         ]
       container: @el.closest('.content')

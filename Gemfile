@@ -1,10 +1,11 @@
 source 'https://rubygems.org'
 
 # core - base
-ruby '2.4.2'
-gem 'rails', '5.1.4'
+ruby '2.4.4'
+gem 'rails', '5.1.7'
 
 # core - rails additions
+gem 'activerecord-import'
 gem 'activerecord-session_store'
 gem 'composite_primary_keys'
 gem 'json'
@@ -16,8 +17,8 @@ gem 'unicorn', group: :unicorn
 
 # core - supported ORMs
 gem 'activerecord-nulldb-adapter', group: :nulldb
-gem 'mysql2', group: :mysql
-gem 'pg', group: :postgres
+gem 'mysql2', '0.4.10', group: :mysql
+gem 'pg', '0.21.0', group: :postgres
 
 # core - asynchrous task execution
 gem 'daemons'
@@ -28,34 +29,31 @@ gem 'em-websocket'
 gem 'eventmachine'
 
 # core - password security
-gem 'argon2'
+gem 'argon2', '1.1.5'
 
 # performance - Memcached
 gem 'dalli'
 
-# asset handling
-group :assets do
-  # asset handling - coffee-script
-  gem 'coffee-rails'
-  gem 'coffee-script-source'
+# asset handling - coffee-script
+gem 'coffee-rails'
+gem 'coffee-script-source'
 
-  # asset handling - frontend templating
-  gem 'eco'
+# asset handling - frontend templating
+gem 'eco'
 
-  # asset handling - SASS
-  gem 'sass-rails'
+# asset handling - SASS
+gem 'sassc-rails'
 
-  # asset handling - pipeline
-  gem 'sprockets'
-  gem 'uglifier'
-end
+# asset handling - pipeline
+gem 'sprockets'
+gem 'uglifier'
 
 gem 'autoprefixer-rails'
 
 # asset handling - javascript execution for e.g. linux
 gem 'execjs'
 gem 'libv8'
-gem 'therubyracer'
+gem 'mini_racer'
 
 # authentication - provider
 gem 'doorkeeper'
@@ -76,12 +74,13 @@ gem 'omniauth-weibo-oauth2'
 # channels
 gem 'koala'
 gem 'telegramAPI'
-gem 'twitter'
+gem 'twitter', git: 'https://github.com/sferik/twitter.git'
 
 # channels - email additions
 gem 'htmlentities'
-gem 'mail', '2.6.6'
+gem 'mail', git: 'https://github.com/zammad-deps/mail', branch: '2-7-stable'
 gem 'mime-types'
+gem 'rchardet', '>= 1.8.0'
 gem 'valid_email2'
 
 # feature - business hours
@@ -100,6 +99,12 @@ gem 'browser'
 gem 'icalendar'
 gem 'icalendar-recurrence'
 
+# feature - phone number formatting
+gem 'telephone_number'
+
+# feature - SMS
+gem 'twilio-ruby'
+
 # integrations
 gem 'clearbit'
 gem 'net-ldap'
@@ -107,13 +112,28 @@ gem 'slack-notifier'
 gem 'zendesk_api'
 
 # integrations - exchange
-gem 'autodiscover', git: 'https://github.com/thorsteneckel/autodiscover.git'
-gem 'rubyntlm', git: 'https://github.com/wimm/rubyntlm.git'
+gem 'autodiscover', git: 'https://github.com/zammad-deps/autodiscover'
+gem 'rubyntlm', git: 'https://github.com/wimm/rubyntlm'
 gem 'viewpoint'
+
+# image processing
+gem 'rszr', '0.4.0'
 
 # Gems used only for develop/test and not required
 # in production environments by default.
 group :development, :test do
+
+  # app boottime improvement
+  gem 'spring'
+  gem 'spring-commands-rspec'
+  gem 'spring-commands-testunit'
+
+  # debugging
+  gem 'byebug'
+  gem 'pry-rails'
+  gem 'pry-remote'
+  gem 'pry-rescue'
+  gem 'pry-stack_explorer'
 
   # test frameworks
   gem 'rspec-rails'
@@ -128,12 +148,13 @@ group :development, :test do
   gem 'simplecov-rcov'
 
   # UI tests w/ Selenium
-  gem 'selenium-webdriver', '2.53.4'
+  gem 'capybara', '~> 2.13'
+  gem 'selenium-webdriver'
 
   # livereload on template changes (html, js, css)
   gem 'guard',             require: false
   gem 'guard-livereload',  require: false
-  gem 'rack-livereload'
+  gem 'rack-livereload',   require: false
   gem 'rb-fsevent',        require: false
 
   # auto symlinking
@@ -143,22 +164,29 @@ group :development, :test do
   gem 'coffeelint'
   gem 'pre-commit'
   gem 'rubocop'
+  gem 'rubocop-performance'
+  gem 'rubocop-rspec'
 
   # changelog generation
   gem 'github_changelog_generator'
 
-  # Setting ENV for testing purposes
-  gem 'figaro'
-
-  # Use Factory Bot for generating random test data
+  # generate random test data
   gem 'factory_bot_rails'
+  gem 'faker'
 
   # mock http calls
   gem 'webmock'
+
+  # record and replay TCP/HTTP transactions
+  gem 'tcr', git: 'https://github.com/zammad-deps/tcr'
+  gem 'vcr'
 end
 
-# load onw gems for development and testing purposes
-local_gemfile = File.join(File.dirname(__FILE__), 'Gemfile.local')
-if File.exist?(local_gemfile)
-  eval_gemfile local_gemfile
-end
+# Want to extend Zammad with additional gems?
+# ZAMMAD USERS: Specify them in Gemfile.local
+#               (That way, you can customize the Gemfile
+#               without having your changes overwritten during upgrades.)
+# ZAMMAD DEVS:  Consult the internal wiki
+#               (or else risk pushing unwanted changes to Gemfile.lock!)
+#               https://git.znuny.com/zammad/zammad/wikis/Tips#user-content-customizing-the-gemfile
+eval_gemfile 'Gemfile.local' if File.exist?('Gemfile.local')

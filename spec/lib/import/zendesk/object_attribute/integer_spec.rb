@@ -1,9 +1,11 @@
 require 'rails_helper'
+require 'lib/import/zendesk/object_attribute/base_examples'
 
 # required due to some of rails autoloading issues
 require 'import/zendesk/object_attribute/integer'
 
 RSpec.describe Import::Zendesk::ObjectAttribute::Integer do
+  it_behaves_like Import::Zendesk::ObjectAttribute::Base
 
   it 'imports integer object attribute from integer object field' do
 
@@ -20,25 +22,25 @@ RSpec.describe Import::Zendesk::ObjectAttribute::Integer do
     )
 
     expected_structure = {
-      object:      'Ticket',
-      name:        'example_field',
-      display:     'Example attribute',
-      data_type:   'integer',
-      data_option: {
+      object:        'Ticket',
+      name:          'example_field',
+      display:       'Example attribute',
+      data_type:     'integer',
+      data_option:   {
         null: false,
         note: 'Example attribute description',
         min:  0,
         max:  999_999_999,
       },
-      editable: true,
-      active:   true,
-      screens:  {
+      editable:      true,
+      active:        true,
+      screens:       {
         edit: {
           Customer: {
             shown: true,
-            null: false
+            null:  false
           },
-          view: {
+          view:     {
             '-all-' => {
               shown: true
             }

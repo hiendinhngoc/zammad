@@ -8,7 +8,7 @@ class ImportOtrsController < ApplicationController
     # validate
     if !params[:url] || params[:url] !~ %r{^(http|https)://.+?$}
       render json: {
-        result: 'invalid',
+        result:  'invalid',
         message: 'Invalid URL!',
       }
       return
@@ -31,9 +31,9 @@ class ImportOtrsController < ApplicationController
         end
       end
       render json: {
-        result: 'invalid',
+        result:        'invalid',
         message_human: message_human,
-        message: response.error.to_s,
+        message:       response.error.to_s,
       }
       return
     end
@@ -59,7 +59,7 @@ class ImportOtrsController < ApplicationController
 
           if !key_parts[1]
             render json: {
-              result: 'invalid',
+              result:        'invalid',
               message_human: 'Unable to get key from URL!'
             }
             return
@@ -78,22 +78,22 @@ class ImportOtrsController < ApplicationController
 
         result = {
           result: 'ok',
-          url: params[:url],
+          url:    params[:url],
         }
       else
         result = {
-          result: 'invalid',
+          result:        'invalid',
           message_human: migrator_response['Error']
         }
       end
     elsif response.body.match?(/(otrs\sag|otrs\.com|otrs\.org)/i)
       result = {
-        result: 'invalid',
+        result:        'invalid',
         message_human: 'Host found, but no OTRS migrator is installed!'
       }
     else
       result = {
-        result: 'invalid',
+        result:        'invalid',
         message_human: 'Host found, but it seems to be no OTRS installation!',
       }
     end
@@ -103,12 +103,13 @@ class ImportOtrsController < ApplicationController
 
   def import_start
     return if setup_done_response
+
     Setting.set('import_mode', true)
     welcome = Import::OTRS.connection_test
     if !welcome
       render json: {
         message: 'Migrator can\'t read OTRS output!',
-        result: 'invalid',
+        result:  'invalid',
       }
       return
     end
@@ -130,6 +131,7 @@ class ImportOtrsController < ApplicationController
     dynamic_fields = Import::OTRS::Requester.load('DynamicField')
     dynamic_fields.each do |dynamic_field|
       next if dynamic_field['ValidID'].to_i != 1
+
       dynamic_field_count += 1
     end
     if dynamic_field_count > 20
@@ -140,6 +142,7 @@ class ImportOtrsController < ApplicationController
     sys_configs = Import::OTRS::Requester.load('SysConfig')
     sys_configs.each do |sys_config|
       next if sys_config['Key'] != 'Process'
+
       issues.push 'otrsProcesses'
     end
 
@@ -176,6 +179,7 @@ class ImportOtrsController < ApplicationController
     if !setup_done
       return false
     end
+
     render json: {
       setup_done: true,
     }

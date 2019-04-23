@@ -47,13 +47,36 @@ curl http://localhost/api/v1/online_notifications.json -v -u #{login}:#{password
 =end
 
   def index
-    if response_full?
-      render json: OnlineNotification.list_full(current_user, 200)
+    online_notifications = OnlineNotification.list(current_user, 200)
+
+    if response_expand?
+      list = []
+      online_notifications.each do |item|
+        list.push item.attributes_with_association_names
+      end
+      render json: list, status: :ok
       return
     end
 
-    notifications = OnlineNotification.list(current_user, 200)
-    model_index_render_result(notifications)
+    if response_full?
+      assets = {}
+      item_ids = []
+      online_notifications.each do |item|
+        item_ids.push item.id
+        assets = item.assets(assets)
+      end
+      render json: {
+        record_ids: item_ids,
+        assets:     assets,
+      }, status: :ok
+      return
+    end
+
+    all = []
+    online_notifications.each do |item|
+      all.push item.attributes_with_association_ids
+    end
+    render json: all, status: :ok
   end
 
 =begin
@@ -80,6 +103,7 @@ curl http://localhost/api/v1/online_notifications/#{id} -v -u #{login}:#{passwor
 
   def show
     return if !access?
+
     model_show_render(OnlineNotification, params)
   end
 
@@ -108,6 +132,7 @@ curl http://localhost/api/v1/online_notifications -v -u #{login}:#{password} -H 
 
   def update
     return if !access?
+
     model_update_render(OnlineNotification, params)
   end
 
@@ -126,6 +151,7 @@ curl http://localhost/api/v1/online_notifications/{id}.json -v -u #{login}:#{pas
 
   def destroy
     return if !access?
+
     model_destroy_render(OnlineNotification, params)
   end
 
@@ -159,11 +185,9 @@ curl http://localhost/api/v1/online_notifications/mark_all_as_read -v -u #{login
 
   def access?
     notification = OnlineNotification.find(params[:id])
-    if notification.user_id != current_user.id
-      response_access_deny
-      return false
-    end
-    true
+    return true if notification.user_id == current_user.id
+
+    raise Exceptions::NotAuthorized
   end
 
 end

@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class PreferencesTokenAccessTest < TestCase
@@ -8,7 +7,7 @@ class PreferencesTokenAccessTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
     click(css: 'a[href="#current_user"]')
@@ -16,11 +15,8 @@ class PreferencesTokenAccessTest < TestCase
     click(css: 'a[href="#profile/token_access"]')
 
     click(css: '.content.active .js-create')
-    watch_for(
-      css: '.modal .modal-title',
-      value: 'Add a Personal Access Token'
-    )
 
+    modal_ready()
     set(
       css:   '.content.active .modal .js-input',
       value: 'Some App#1',
@@ -33,24 +29,24 @@ class PreferencesTokenAccessTest < TestCase
     click(css: '.content.active .modal input[value="ticket.agent"] ~ .label-text')
     click(css: '.content.active .modal .js-submit')
     watch_for(
-      css: '.modal .modal-title',
+      css:   '.modal .modal-title',
       value: 'Your New Personal Access Token'
     )
     click(css: '.modal .js-submit')
+    modal_disappear()
+
     watch_for(
-      css: '.content.active .js-tokenList',
+      css:   '.content.active .js-tokenList',
       value: 'Some App#1'
     )
     watch_for(
-      css: '.content.active .js-tokenList',
+      css:   '.content.active .js-tokenList',
       value: '05/15/2022'
     )
 
     click(css: '.content.active .js-create')
-    watch_for(
-      css: '.modal .modal-title',
-      value: 'Add a Personal Access Token'
-    )
+
+    modal_ready()
     set(
       css:   '.content.active .modal .js-input',
       value: 'Some App#2',
@@ -59,25 +55,30 @@ class PreferencesTokenAccessTest < TestCase
     click(css: '.content.active .modal .js-submit')
 
     watch_for(
-      css: '.modal .modal-title',
+      css:   '.modal .modal-title',
       value: 'Your New Personal Access Token'
     )
     click(css: '.modal .js-submit')
+    modal_disappear()
+
     watch_for(
-      css: '.content.active .js-tokenList',
+      css:   '.content.active .js-tokenList',
       value: 'Some App#2'
     )
 
     click(css: '.content.active .js-tokenList a')
+
+    modal_ready()
     watch_for(
-      css: '.content.active .modal .modal-header',
+      css:   '.content.active .modal .modal-header',
       value: 'confirm',
     )
     click(
       css: '.content.active .modal .js-submit',
     )
+    modal_disappear()
     watch_for_disappear(
-      css: '.content.active .js-tokenList',
+      css:   '.content.active .js-tokenList',
       value: 'Some App#2'
     )
 

@@ -16,7 +16,7 @@ class TimeAccountingsController < ApplicationController
       if !time_unit[record[0]]
         time_unit[record[0]] = {
           time_unit: 0,
-          agent_id: record[2],
+          agent_id:  record[2],
         }
       end
       time_unit[record[0]][:time_unit] += record[1]
@@ -28,6 +28,7 @@ class TimeAccountingsController < ApplicationController
     time_unit.each do |ticket_id, local_time_unit|
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
+
       if !customers[ticket.customer_id]
         customers[ticket.customer_id] = '-'
         if ticket.customer_id
@@ -46,7 +47,7 @@ class TimeAccountingsController < ApplicationController
           end
         end
       end
-      if !customers[local_time_unit[:agent_id]]
+      if !agents[local_time_unit[:agent_id]]
         agent_user = User.lookup(id: local_time_unit[:agent_id])
         agent = '-'
         if agent_user
@@ -54,11 +55,11 @@ class TimeAccountingsController < ApplicationController
         end
       end
       result = {
-        ticket: ticket.attributes,
-        time_unit: local_time_unit[:time_unit],
-        customer: customers[ticket.customer_id],
+        ticket:       ticket.attributes,
+        time_unit:    local_time_unit[:time_unit],
+        customer:     customers[ticket.customer_id],
         organization: organizations[ticket.organization_id],
-        agent: agents[local_time_unit[:agent_id]],
+        agent:        agents[local_time_unit[:agent_id]],
       }
       results.push result
     end
@@ -66,102 +67,112 @@ class TimeAccountingsController < ApplicationController
     if params[:download]
       header = [
         {
-          name: 'Ticket#',
+          name:  'Ticket#',
           width: 15,
         },
         {
-          name: 'Title',
+          name:  'Title',
           width: 30,
         },
         {
-          name: 'Customer',
+          name:  'Customer',
           width: 20,
         },
         {
-          name: 'Organization',
+          name:  'Organization',
           width: 20,
         },
         {
-          name: 'Agent',
+          name:  'Agent',
           width: 20,
         },
         {
-          name: 'Time Units',
+          name:  'Time Units',
           width: 10,
         },
         {
-          name: 'Time Units Total',
+          name:  'Time Units Total',
           width: 10,
         },
         {
-          name: 'Created at',
+          name:  'Created at',
           width: 10,
         },
         {
-          name: 'Closed at',
+          name:  'Closed at',
           width: 10,
         },
         {
-          name: 'Close Escalation At',
+          name:  'Close Escalation At',
           width: 10,
         },
         {
-          name: 'Close In Min',
+          name:  'Close In Min',
           width: 10,
         },
         {
-          name: 'Close Diff In Min',
+          name:  'Close Diff In Min',
           width: 10,
         },
         {
-          name: 'First Response At',
+          name:  'First Response At',
           width: 10,
         },
         {
-          name: 'First Response Escalation At',
+          name:  'First Response Escalation At',
           width: 10,
         },
         {
-          name: 'First Response In Min',
+          name:  'First Response In Min',
           width: 10,
         },
         {
-          name: 'First Response Diff In Min',
+          name:  'First Response Diff In Min',
           width: 10,
         },
         {
-          name: 'Update Escalation At',
+          name:  'Update Escalation At',
           width: 10,
         },
         {
-          name: 'Update In Min',
+          name:  'Update In Min',
           width: 10,
         },
         {
-          name: 'Update Diff In Min',
+          name:  'Update Diff In Min',
           width: 10,
         },
         {
-          name: 'Last Contact At',
+          name:  'Last Contact At',
           width: 10,
         },
         {
-          name: 'Last Contact Agent At',
+          name:  'Last Contact Agent At',
           width: 10,
         },
         {
-          name: 'Last Contact Customer At',
+          name:  'Last Contact Customer At',
           width: 10,
         },
         {
-          name: 'Article Count',
+          name:  'Article Count',
           width: 10,
         },
         {
-          name: 'Escalation At',
+          name:  'Escalation At',
           width: 10,
         },
       ]
+      objects = ObjectManager::Attribute.where(editable:         true,
+                                               active:           true,
+                                               to_create:        false,
+                                               object_lookup_id: ObjectLookup.lookup(name: 'Ticket').id)
+                                        .pluck(:name, :display, :data_type, :data_option)
+                                        .map { |name, display, data_type, data_option| { name: name, display: display, data_type: data_type, data_option: data_option } }
+      objects.each do |object|
+        header.push({ name: object[:display], width: 10 })
+      end
+
       result = []
       results.each do |row|
         row[:ticket].each_key do |field|
@@ -197,13 +208,33 @@ class TimeAccountingsController < ApplicationController
           row[:ticket]['article_count'],
           row[:ticket]['escalation_at'],
         ]
+
+        # needed to get human values for boolean/select rather than true/false values
+        ticket = Ticket.lookup(id: row[:ticket]['id'])
+
+        # Object Manager attributes
+        # We already queried ObjectManager::Attributes, so we just use objects
+        objects.each do |object|
+          key = object[:name]
+          case object[:data_type]
+          when 'boolean', 'select'
+            value = object[:data_option]['options'][ticket.send(key.to_sym)]
+            value.present? ? result_row.push(value) : result_row.push('')
+          when 'datetime', 'date'
+            row[:ticket][key].present? ? result_row.push(row[:ticket][key].to_time.iso8601) : result_row.push('')
+          else
+            # for text, integer and tree select
+            row[:ticket][key].present? ? result_row.push(row[:ticket][key]) : result_row.push('')
+          end
+        end
+
         result.push result_row
       end
       content = sheet("By Ticket #{year}-#{month}", header, result)
       send_data(
         content,
-        filename: "by_ticket-#{year}-#{month}.xls",
-        type: 'application/vnd.ms-excel',
+        filename:    "by_ticket-#{year}-#{month}.xls",
+        type:        'application/vnd.ms-excel',
         disposition: 'attachment'
       )
       return
@@ -225,7 +256,7 @@ class TimeAccountingsController < ApplicationController
       if !time_unit[record[0]]
         time_unit[record[0]] = {
           time_unit: 0,
-          agent_id: record[2],
+          agent_id:  record[2],
         }
       end
       time_unit[record[0]][:time_unit] += record[1]
@@ -235,15 +266,16 @@ class TimeAccountingsController < ApplicationController
     time_unit.each do |ticket_id, local_time_unit|
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
+
       if !customers[ticket.customer_id]
         organization = nil
         if ticket.organization_id
           organization = Organization.lookup(id: ticket.organization_id).attributes
         end
         customers[ticket.customer_id] = {
-          customer: User.lookup(id: ticket.customer_id).attributes,
+          customer:     User.lookup(id: ticket.customer_id).attributes,
           organization: organization,
-          time_unit: local_time_unit[:time_unit],
+          time_unit:    local_time_unit[:time_unit],
         }
         next
       end
@@ -257,15 +289,15 @@ class TimeAccountingsController < ApplicationController
     if params[:download]
       header = [
         {
-          name: 'Customer',
+          name:  'Customer',
           width: 30,
         },
         {
-          name: 'Organization',
+          name:  'Organization',
           width: 30,
         },
         {
-          name: 'Time Units',
+          name:  'Time Units',
           width: 10,
         }
       ]
@@ -282,8 +314,8 @@ class TimeAccountingsController < ApplicationController
       content = sheet("By Customer #{year}-#{month}", header, result)
       send_data(
         content,
-        filename: "by_customer-#{year}-#{month}.xls",
-        type: 'application/vnd.ms-excel',
+        filename:    "by_customer-#{year}-#{month}.xls",
+        type:        'application/vnd.ms-excel',
         disposition: 'attachment'
       )
       return
@@ -305,7 +337,7 @@ class TimeAccountingsController < ApplicationController
       if !time_unit[record[0]]
         time_unit[record[0]] = {
           time_unit: 0,
-          agent_id: record[2],
+          agent_id:  record[2],
         }
       end
       time_unit[record[0]][:time_unit] += record[1]
@@ -316,10 +348,11 @@ class TimeAccountingsController < ApplicationController
       ticket = Ticket.lookup(id: ticket_id)
       next if !ticket
       next if !ticket.organization_id
+
       if !organizations[ticket.organization_id]
         organizations[ticket.organization_id] = {
           organization: Organization.lookup(id: ticket.organization_id).attributes,
-          time_unit: local_time_unit[:time_unit],
+          time_unit:    local_time_unit[:time_unit],
         }
         next
       end
@@ -333,11 +366,11 @@ class TimeAccountingsController < ApplicationController
     if params[:download]
       header = [
         {
-          name: 'Organization',
+          name:  'Organization',
           width: 40,
         },
         {
-          name: 'Time Units',
+          name:  'Time Units',
           width: 20,
         }
       ]
@@ -353,8 +386,8 @@ class TimeAccountingsController < ApplicationController
       content = sheet("By Organization #{year}-#{month}", header, result)
       send_data(
         content,
-        filename: "by_organization-#{year}-#{month}.xls",
-        type: 'application/vnd.ms-excel',
+        filename:    "by_organization-#{year}-#{month}.xls",
+        type:        'application/vnd.ms-excel',
         disposition: 'attachment'
       )
       return

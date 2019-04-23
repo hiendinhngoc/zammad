@@ -1,9 +1,18 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-
 class ActivityStream < ApplicationModel
+  include ActivityStream::Assets
+
   self.table_name = 'activity_streams'
-  belongs_to :activity_stream_type,     class_name: 'TypeLookup'
-  belongs_to :activity_stream_object,   class_name: 'ObjectLookup'
+
+  # rubocop:disable Rails/InverseOf
+  belongs_to :object, class_name: 'ObjectLookup', foreign_key: 'activity_stream_object_id'
+  belongs_to :type,   class_name: 'TypeLookup',   foreign_key: 'activity_stream_type_id'
+  # rubocop:enable Rails/InverseOf
+
+  # the noop is needed since Layout/EmptyLines detects
+  # the block commend below wrongly as the measurement of
+  # the wanted indentation of the rubocop re-enabling above
+  def noop; end
 
 =begin
 
@@ -36,17 +45,21 @@ add a new activity entry for an object
       if !permission
         raise "No such Permission #{data[:permission]}"
       end
+
       permission_id = permission.id
     end
 
+    # check if object for online notification exists
+    exists_by_object_and_id?(data[:object], data[:o_id])
+
     # check newest entry - is needed
     result = ActivityStream.where(
-      o_id: data[:o_id],
+      o_id:                      data[:o_id],
       #:activity_stream_type_id  => type_id,
-      permission_id: permission_id,
+      permission_id:             permission_id,
       activity_stream_object_id: object_id,
-      created_by_id: data[:created_by_id]
-    ).order('created_at DESC, id DESC').first
+      created_by_id:             data[:created_by_id]
+    ).order(created_at: :desc).first
 
     # resturn if old entry is really fresh
     if result
@@ -56,13 +69,13 @@ add a new activity entry for an object
 
     # create history
     record = {
-      o_id: data[:o_id],
-      activity_stream_type_id: type_id,
+      o_id:                      data[:o_id],
+      activity_stream_type_id:   type_id,
       activity_stream_object_id: object_id,
-      permission_id: permission_id,
-      group_id: data[:group_id],
-      created_at: data[:created_at],
-      created_by_id: data[:created_by_id]
+      permission_id:             permission_id,
+      group_id:                  data[:group_id],
+      created_at:                data[:created_at],
+      created_by_id:             data[:created_by_id]
     }
 
     ActivityStream.create(record)
@@ -80,7 +93,7 @@ remove whole activity entries of an object
     object_id = ObjectLookup.by_name(object_name)
     ActivityStream.where(
       activity_stream_object_id: object_id,
-      o_id: o_id,
+      o_id:                      o_id,
     ).destroy_all
   end
 
@@ -100,24 +113,15 @@ return all activity entries of an user
     group_ids = user.group_ids_access('read')
 
     stream = if group_ids.blank?
-               ActivityStream.where('(permission_id IN (?) AND group_id is NULL)', permission_ids)
-                             .order('created_at DESC, id DESC')
+               ActivityStream.where('(permission_id IN (?) AND group_id IS NULL)', permission_ids)
+                             .order(created_at: :desc)
                              .limit(limit)
              else
-               ActivityStream.where('(permission_id IN (?) AND group_id is NULL) OR (permission_id IN (?) AND group_id IN (?)) OR (permission_id is NULL AND group_id IN (?))', permission_ids, permission_ids, group_ids, group_ids)
-                             .order('created_at DESC, id DESC')
+               ActivityStream.where('(permission_id IN (?) AND (group_id IS NULL OR group_id IN (?))) OR (permission_id IS NULL AND group_id IN (?))', permission_ids, group_ids, group_ids)
+                             .order(created_at: :desc)
                              .limit(limit)
              end
-    list = []
-    stream.each do |item|
-      data           = item.attributes
-      data['object'] = ObjectLookup.by_id( data['activity_stream_object_id'] )
-      data['type']   = TypeLookup.by_id( data['activity_stream_type_id'] )
-      data.delete('activity_stream_object_id')
-      data.delete('activity_stream_type_id')
-      list.push data
-    end
-    list
+    stream
   end
 
 =begin

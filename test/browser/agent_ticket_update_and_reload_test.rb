@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class AgentTicketUpdateAndReloadTest < TestCase
@@ -8,17 +7,17 @@ class AgentTicketUpdateAndReloadTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
     # create ticket
     ticket_create(
-      data: {
+      data:          {
         customer: 'nicole',
-        group: 'Users',
-        title: 'some subject 4 - 123äöü',
-        body: 'some body 4 - 123äöü',
+        group:    'Users',
+        title:    'some subject 4 - 123äöü',
+        body:     'some body 4 - 123äöü',
       },
       do_not_submit: true,
     )
@@ -27,7 +26,7 @@ class AgentTicketUpdateAndReloadTest < TestCase
     # check if customer is shown in sidebar
     click(css: '.active .tabsSidebar-tab[data-tab="customer"]')
     match(
-      css: '.active .sidebar[data-tab="customer"]',
+      css:   '.active .sidebar[data-tab="customer"]',
       value: 'nicole',
     )
 
@@ -49,7 +48,7 @@ class AgentTicketUpdateAndReloadTest < TestCase
     # check if customer is still shown in sidebar
     click(css: '.active .tabsSidebar-tab[data-tab="customer"]')
     watch_for(
-      css: '.active .sidebar[data-tab="customer"]',
+      css:   '.active .sidebar[data-tab="customer"]',
       value: 'nicole',
     )
     sleep 2
@@ -64,7 +63,7 @@ class AgentTicketUpdateAndReloadTest < TestCase
 
     # check ticket
     match(
-      css: '.active div.ticket-article',
+      css:   '.active div.ticket-article',
       value: 'some body 4 - 123äöü',
     )
 

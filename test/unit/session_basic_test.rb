@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class SessionBasicTest < ActiveSupport::TestCase
@@ -54,14 +53,14 @@ class SessionBasicTest < ActiveSupport::TestCase
     groups = Group.all
 
     agent1 = User.create_or_update(
-      login: 'session-agent-1',
-      firstname: 'Session',
-      lastname: 'Agent 1',
-      email: 'session-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      login:         'session-agent-1',
+      firstname:     'Session',
+      lastname:      'Agent 1',
+      email:         'session-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -95,7 +94,7 @@ class SessionBasicTest < ActiveSupport::TestCase
     Sessions.destroy(client_id1)
 
     # check if session exists
-    assert(!Sessions.session_exists?(client_id1), 'check if session exists')
+    assert_not(Sessions.session_exists?(client_id1), 'check if session exists')
 
   end
 
@@ -107,14 +106,14 @@ class SessionBasicTest < ActiveSupport::TestCase
     groups = Group.all
 
     agent1 = User.create_or_update(
-      login: 'session-collection-agent-1',
-      firstname: 'Session',
-      lastname: 'Agent 1',
-      email: 'session-collection-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      login:         'session-collection-agent-1',
+      firstname:     'Session',
+      lastname:      'Agent 1',
+      email:         'session-collection-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -132,10 +131,10 @@ class SessionBasicTest < ActiveSupport::TestCase
 
     # next check should be empty
     result1 = collection_client1.push
-    assert(!result1, 'check collections - recall')
+    assert_not(result1, 'check collections - recall')
     travel 1.second
     result2 = collection_client2.push
-    assert(!result2, 'check collections - recall')
+    assert_not(result2, 'check collections - recall')
 
     # change collection
     group = Group.first
@@ -159,8 +158,8 @@ class SessionBasicTest < ActiveSupport::TestCase
 
     # change collection
     group = Group.create!(
-      name: "SomeGroup::#{rand(999_999)}",
-      active: true,
+      name:          "SomeGroup::#{rand(999_999)}",
+      active:        true,
       created_by_id: 1,
       updated_by_id: 1,
     )
@@ -207,14 +206,14 @@ class SessionBasicTest < ActiveSupport::TestCase
     groups = Group.all
 
     agent1 = User.create_or_update(
-      login: 'activity-stream-agent-1',
-      firstname: 'Session',
-      lastname: "activity stream #{rand(99_999)}",
-      email: 'activity-stream-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      login:         'activity-stream-agent-1',
+      firstname:     'Session',
+      lastname:      "activity stream #{rand(99_999)}",
+      email:         'activity-stream-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -222,7 +221,7 @@ class SessionBasicTest < ActiveSupport::TestCase
     # create min. on activity record
     random_name = "Random:#{rand(9_999_999_999)}"
     Group.create_or_update(
-      name: random_name,
+      name:          random_name,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -236,20 +235,20 @@ class SessionBasicTest < ActiveSupport::TestCase
 
     # next check should be empty
     result1 = as_client1.push
-    assert(!result1, 'check as agent1 - recall')
+    assert_not(result1, 'check as agent1 - recall')
 
     # next check should be empty
     travel 4.seconds
     result1 = as_client1.push
-    assert(!result1, 'check as agent1 - recall 2')
+    assert_not(result1, 'check as agent1 - recall 2')
 
     agent1.update!(email: 'activity-stream-agent11@example.com')
     ticket = Ticket.create!(
-      title: '12323',
-      group_id: 1,
-      priority_id: 1,
-      state_id: 1,
-      customer_id: 1,
+      title:         '12323',
+      group_id:      1,
+      priority_id:   1,
+      state_id:      1,
+      customer_id:   1,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -269,14 +268,14 @@ class SessionBasicTest < ActiveSupport::TestCase
     groups = Group.all
 
     agent1 = User.create_or_update(
-      login: 'ticket_create-agent-1',
-      firstname: 'Session',
-      lastname: "ticket_create #{rand(99_999)}",
-      email: 'ticket_create-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      login:         'ticket_create-agent-1',
+      firstname:     'Session',
+      lastname:      "ticket_create #{rand(99_999)}",
+      email:         'ticket_create-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -290,16 +289,16 @@ class SessionBasicTest < ActiveSupport::TestCase
 
     # next check should be empty
     result1 = ticket_create_client1.push
-    assert(!result1, 'check ticket_create - recall')
+    assert_not(result1, 'check ticket_create - recall')
 
     # next check should be empty
     travel 1.second
     result1 = ticket_create_client1.push
-    assert(!result1, 'check ticket_create - recall 2')
+    assert_not(result1, 'check ticket_create - recall 2')
 
     Group.create!(
-      name: "SomeTicketCreateGroup::#{rand(999_999)}",
-      active: true,
+      name:          "SomeTicketCreateGroup::#{rand(999_999)}",
+      active:        true,
       updated_by_id: 1,
       created_by_id: 1,
     )

@@ -83,7 +83,20 @@ class App.TaskManager
     return if !_instance
     _instance.preferencesTrigger(key)
 
+  @tasksAutoCleanupDelayTime: (key) ->
+    return if !_instance
+    if !key
+      return _instance.tasksAutoCleanupDelayTime
+    _instance.tasksAutoCleanupDelayTime = key
+
+  @tasksAutoCleanupTaskMax: (key) ->
+    return if !_instance
+    if !key
+      return _instance.maxTaskCount
+    _instance.maxTaskCount = key
+
 class _taskManagerSingleton extends App.Controller
+  @extend App.PopoverProvidable
   @include App.LogInclude
 
   constructor: (params = {}) ->
@@ -108,9 +121,11 @@ class _taskManagerSingleton extends App.Controller
     @tasksToUpdate             = {}
     @tasksPreferences          = {}
     @tasksPreferencesCallbacks = {}
+    @tasksAutoCleanupDelayTime = 12000
     @activeTaskHistory         = []
     @queue                     = []
     @queueRunning              = false
+    @maxTaskCount              = 30
 
   all: ->
 
@@ -175,7 +190,10 @@ class _taskManagerSingleton extends App.Controller
     @queueRunning = true
     loop
       param = @queue.shift()
-      @executeSingel(param)
+      try
+        @executeSingel(param)
+      catch e
+        @log 'error', 'executeSingel task:', param.key, e
       if !@queue[0]
         @queueRunning = false
         break
@@ -377,7 +395,7 @@ class _taskManagerSingleton extends App.Controller
     if controller.hide && _.isFunction(controller.hide)
       controller.hide()
 
-    @anyPopoversDestroy()
+    @delayedRemoveAnyPopover()
 
     true
 
@@ -596,7 +614,7 @@ class _taskManagerSingleton extends App.Controller
   tasksAutoCleanupDelay: =>
     delay = =>
       @tasksAutoCleanup()
-    App.Delay.set(delay, 12000, 'task-autocleanup', undefined, true)
+    App.Delay.set(delay, @tasksAutoCleanupDelayTime, 'task-autocleanup', undefined, true)
 
   tasksAutoCleanup: =>
 
@@ -604,13 +622,19 @@ class _taskManagerSingleton extends App.Controller
     currentTaskCount = =>
       Object.keys(@allTasksByKey).length
 
-    maxTaskCount = 30
-    if currentTaskCount() > maxTaskCount
-      for task in App.Taskbar.search(sortBy:'updated_at', order:'ASC')
-        if currentTaskCount() > maxTaskCount
+    if currentTaskCount() > @maxTaskCount
+      if @offlineModus
+        tasks = @all()
+      else
+        tasks = App.Taskbar.search(sortBy:'updated_at', order:'ASC')
+      for task in tasks
+        if currentTaskCount() > @maxTaskCount
           if !task.active
-            if _.isEmpty(task.state) || (_.isEmpty(task.state.ticket) && _.isEmpty(task.state.article))
-              @log 'notice', "More then #{maxTaskCount} tasks open, close oldest untouched task #{task.key}"
+            worker = App.TaskManager.worker(task.key)
+            if worker
+              if worker.changed && worker.changed()
+                continue
+              @log 'notice', "More then #{@maxTaskCount} tasks open, close oldest untouched task #{task.key}"
               @remove(task.key)
 
   tasksInitial: =>
@@ -627,15 +651,11 @@ class _taskManagerSingleton extends App.Controller
     App.Event.trigger 'taskbar:init'
 
     # initial load of permanent tasks
-    user_id = App.Session.get('id')
-    user = undefined
-    if user_id
-      user = App.User.find(user_id)
     permanentTask  = App.Config.get('permanentTask')
     taskCount     = 0
     if permanentTask
       for key, config of permanentTask
-        if !config.permission || (user && user.permission(config.permission))
+        if !config.permission || @permissionCheck(config.permission)
           taskCount += 1
           do (key, config, taskCount) =>
             App.Delay.set(

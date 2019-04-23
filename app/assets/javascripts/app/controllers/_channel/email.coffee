@@ -60,68 +60,23 @@ class App.ChannelEmailFilter extends App.Controller
 
   new: (e) =>
     e.preventDefault()
-    new App.ChannelEmailFilterEdit(
+    new App.ControllerGenericNew(
+      pageData:
+        object: 'Postmaster Filter'
+      genericObject: 'PostmasterFilter'
       container: @el.closest('.content')
+      callback: @load
     )
 
   edit: (id, e) =>
     e.preventDefault()
-    new App.ChannelEmailFilterEdit(
-      object:    App.PostmasterFilter.find(id)
+    new App.ControllerGenericEdit(
+      id: id,
+      pageData:
+        object: 'Postmaster Filter'
+      genericObject: 'PostmasterFilter'
       container: @el.closest('.content')
-    )
-
-class App.ChannelEmailFilterEdit extends App.ControllerModal
-  buttonClose: true
-  buttonCancel: true
-  buttonSubmit: true
-  head: 'Postmaster Filter'
-
-  content: =>
-    if @object
-      @form = new App.ControllerForm(
-        model:     App.PostmasterFilter,
-        params:    @object,
-        autofocus: true,
-      )
-    else
-      @form = new App.ControllerForm(
-        model:     App.PostmasterFilter,
-        autofocus: true,
-      )
-
-    @form.form
-
-  onSubmit: (e) =>
-    e.preventDefault()
-
-    # get params
-    params = @formParam(e.target)
-    params['channel'] = 'email'
-
-    object = @object || new App.PostmasterFilter
-    object.load(params)
-
-    # validate form
-    errors = @form.validate(params)
-
-    # show errors in form
-    if errors
-      @log 'error', errors
-      @formValidate(form: e.target, errors: errors)
-      return false
-
-    # disable form
-    @formDisable(e)
-
-    # save object
-    object.save(
-      done: =>
-        @close()
-      fail: (settings, details) =>
-        @log 'errors', details
-        @formEnable(e)
-        @form.showAlert(details.error_human || details.error || 'Unable to create object!')
+      callback: @load
     )
 
 class App.ChannelEmailSignature extends App.Controller
@@ -138,7 +93,7 @@ class App.ChannelEmailSignature extends App.Controller
     template = $( '<div><div class="overview"></div><a data-type="new" class="btn btn--success">' + App.i18n.translateContent('New') + '</a></div>' )
 
     description = '''
-You can define differenct signatures for each group. So you can have different email signatures for different departments.
+You can define different signatures for each group. So you can have different email signatures for different departments.
 
 Once you have created a signature here, you need also to edit the groups where you want to use it.
 '''
@@ -578,7 +533,7 @@ class App.ChannelEmailAccountWizard extends App.WizardModal
       { name: 'options::host',            display: 'Host',     tag: 'input',  type: 'text', limit: 120, null: false, autocapitalize: false },
       { name: 'options::user',            display: 'User',     tag: 'input',  type: 'text', limit: 120, null: false, autocapitalize: false, autocomplete: 'off' },
       { name: 'options::password',        display: 'Password', tag: 'input',  type: 'password', limit: 120, null: false, autocapitalize: false, autocomplete: 'new-password', single: true },
-      { name: 'options::ssl',             display: 'SSL',      tag: 'boolean', null: true, options: { true: 'yes', false: 'no'  }, default: true, translate: true, item_class: 'formGroup--halfSize' },
+      { name: 'options::ssl',             display: 'SSL/STARTTLS',      tag: 'boolean', null: true, options: { true: 'yes', false: 'no'  }, default: true, translate: true, item_class: 'formGroup--halfSize' },
       { name: 'options::port',            display: 'Port',     tag: 'input',  type: 'text', limit: 6,   null: true, autocapitalize: false,  default: '993', item_class: 'formGroup--halfSize' },
       { name: 'options::folder',          display: 'Folder',   tag: 'input',  type: 'text', limit: 120, null: true, autocapitalize: false, item_class: 'formGroup--halfSize' },
       { name: 'options::keep_on_server',  display: 'Keep messages on server', tag: 'boolean', null: true, options: { true: 'yes', false: 'no' }, translate: true, default: false, item_class: 'formGroup--halfSize' },
@@ -598,7 +553,7 @@ class App.ChannelEmailAccountWizard extends App.WizardModal
       return if !params.options
       currentPort = @$('[name="options::port"]').val()
       if params.options.ssl is true
-        if !currentPort || currentPort is '143'
+        if !currentPort
           @$('[name="options::port"]').val('993')
         return
       if params.options.ssl is false

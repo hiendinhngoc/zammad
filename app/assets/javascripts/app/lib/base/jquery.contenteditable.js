@@ -296,7 +296,10 @@
           var result = e.target.result
           var img = document.createElement('img')
           img.src = result
-          maxWidth = this.$element.width() || 500
+          maxWidth = 1000
+          if (this.$element.width() > 1000) {
+            maxWidth = this.$element.width()
+          }
           scaleFactor = 2
           //scaleFactor = 1
           //if (window.isRetina && window.isRetina()) {
@@ -309,7 +312,7 @@
             this.log('image inserted')
             result = dataUrl
             if (this.options.imageWidth == 'absolute') {
-              img = "<img tabindex=\"0\" style=\"width: " + width + "px; height: " + height + "px\" src=\"" + result + "\">"
+              img = "<img tabindex=\"0\" style=\"width: " + width + "px; max-width: 100%;\" src=\"" + result + "\">"
             }
             else {
               img = "<img tabindex=\"0\" style=\"width: 100%; max-width: " + width + "px;\" src=\"" + result + "\">"
@@ -440,12 +443,11 @@
           this.log('image inserted')
           result = dataUrl
           if (this.options.imageWidth == 'absolute') {
-            img = $("<img tabindex=\"0\" style=\"width: " + width + "px; height: " + height + "px\" src=\"" + result + "\">")
+            img = "<img tabindex=\"0\" style=\"width: " + width + "px; max-width: 100%;\" src=\"" + result + "\">"
           }
           else {
-            img = $("<img tabindex=\"0\" style=\"width: 100%; max-width: " + width + "px;\" src=\"" + result + "\">")
+            img = "<img tabindex=\"0\" style=\"width: 100%; max-width: " + width + "px;\" src=\"" + result + "\">"
           }
-          img = img.get(0)
 
           if (document.caretPositionFromPoint) {
             var pos = document.caretPositionFromPoint(x, y)
@@ -540,7 +542,7 @@
 
     // for validation, do not retrun empty content by empty tags
     text_plain = this.$element.text().trim()
-    if ( !text_plain || text_plain == '' ) {
+    if ( (!text_plain || text_plain == '') && !this.$element.find('img').get(0) ) {
       return text_plain
     }
     return this.$element.html().trim()

@@ -3,6 +3,9 @@ class Transaction
     if options[:reset_user_id] == true
       UserInfo.current_user_id = 1
     end
+    if options[:bulk] == true
+      BulkImportInfo.enable
+    end
     original_interface_handle = ApplicationHandleInfo.current
     if options[:interface_handle]
       ApplicationHandleInfo.current = options[:interface_handle]
@@ -13,11 +16,11 @@ class Transaction
       if options[:interface_handle]
         ApplicationHandleInfo.current = original_interface_handle
       end
-      Observer::Transaction.commit(
-        disable_notification: options[:disable_notification],
-        disable: options[:disable],
-      )
+      Observer::Transaction.commit(options)
       PushMessages.finish
     end
+    return if options[:bulk] != true
+
+    BulkImportInfo.disable
   end
 end

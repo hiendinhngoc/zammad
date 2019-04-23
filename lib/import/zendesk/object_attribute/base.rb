@@ -21,11 +21,12 @@ module Import
         rescue => e
           # rubocop:disable Style/SpecialGlobalVars
           raise $!, "Problem with ObjectManager Attribute '#{name}': #{$!}", $!.backtrace
+          # rubocop:enable Style/SpecialGlobalVars
         end
 
         def attribute_config(object, name, attribute)
           {
-            object:        object,
+            object:        object.to_s,
             name:          name,
             display:       attribute.title,
             data_type:     data_type(attribute),
@@ -54,7 +55,7 @@ module Import
             edit: {
               Customer: {
                 shown: attribute.visible_in_portal,
-                null: !attribute.required_in_portal,
+                null:  !attribute.required_in_portal,
               },
             }.merge(config)
           }

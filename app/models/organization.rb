@@ -7,26 +7,30 @@ class Organization < ApplicationModel
   include HasHistory
   include HasSearchIndexBackend
   include CanCsvImport
-  include Organization::ChecksAccess
+  include ChecksHtmlSanitized
+  include HasObjectManagerAttributesValidation
 
-  load 'organization/assets.rb'
+  include Organization::ChecksAccess
   include Organization::Assets
-  extend Organization::Search
-  load 'organization/search_index.rb'
+  include Organization::Search
   include Organization::SearchIndex
 
-  has_many                :members,  class_name: 'User'
-  validates               :name,     presence: true
+  has_many :members, class_name: 'User'
 
   before_create :domain_cleanup
   before_update :domain_cleanup
 
+  validates :name, presence: true
+
   activity_stream_permission 'admin.role'
+
+  sanitized_html :note
 
   private
 
   def domain_cleanup
     return true if domain.blank?
+
     domain.gsub!(/@/, '')
     domain.gsub!(/\s*/, '')
     domain.strip!

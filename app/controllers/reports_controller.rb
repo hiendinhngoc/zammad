@@ -1,7 +1,4 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-
-require 'tempfile'
-
 class ReportsController < ApplicationController
   prepend_before_action { authentication_check(permission: 'report') }
 
@@ -14,7 +11,7 @@ class ReportsController < ApplicationController
       return
     end
     render json: {
-      config: Report.config,
+      config:   Report.config,
       profiles: Report::Profile.list,
     }
   end
@@ -33,29 +30,17 @@ class ReportsController < ApplicationController
         backend[:condition] = condition
       end
       next if !backend[:adapter]
+
       result[backend[:name]] = backend[:adapter].aggs(
-        range_start: get_params[:start],
-        range_end:   get_params[:stop],
-        interval:    get_params[:range],
-        selector:    backend[:condition],
-        params:      backend[:params],
+        range_start:     get_params[:start],
+        range_end:       get_params[:stop],
+        interval:        get_params[:range],
+        selector:        backend[:condition],
+        params:          backend[:params],
+        timezone:        get_params[:timezone],
+        timezone_offset: get_params[:timezone_offset],
       )
     end
-
-    #created = aggs(start, stop, range, 'created_at', profile.condition)
-    #closed = aggs(start, stop, range, 'close_at', profile.condition)
-    #first_solution =
-    #reopend = backend(start, stop, range, Report::TicketReopened, profile.condition)
-
-    # add backlog
-    #backlogs = []
-    #position = -1
-    #created.each {|_not_used|
-    # position += 1
-    #  diff = created[position][1] - closed[position][1]
-    #  backlog = [position+1, diff]
-    #  backlogs.push backlog
-    #}
 
     render json: {
       data: result
@@ -78,6 +63,7 @@ class ReportsController < ApplicationController
     result = {}
     get_params[:metric][:backend].each do |backend|
       next if params[:downloadBackendSelected] != backend[:name]
+
       condition = get_params[:profile].condition
       if backend[:condition]
         backend[:condition].merge(condition)
@@ -85,22 +71,28 @@ class ReportsController < ApplicationController
         backend[:condition] = condition
       end
       next if !backend[:adapter]
+
       result = backend[:adapter].items(
-        range_start: get_params[:start],
-        range_end:   get_params[:stop],
-        interval:    get_params[:range],
-        selector:    backend[:condition],
-        params:      backend[:params],
-        sheet:       params[:sheet],
+        range_start:     get_params[:start],
+        range_end:       get_params[:stop],
+        interval:        get_params[:range],
+        selector:        backend[:condition],
+        params:          backend[:params],
+        sheet:           params[:sheet],
+        timezone:        get_params[:timezone],
+        timezone_offset: get_params[:timezone_offset],
       )
+
+      result = { count: 0, ticket_ids: [] } if result.nil?
 
       # generate sheet
       next if !params[:sheet]
+
       content = sheet(get_params[:profile], backend[:display], result)
       send_data(
         content,
-        filename: "tickets-#{get_params[:profile].name}-#{backend[:display]}.xls",
-        type: 'application/vnd.ms-excel',
+        filename:    "tickets-#{get_params[:profile].name}-#{backend[:display]}.xls",
+        type:        'application/vnd.ms-excel',
         disposition: 'attachment'
       )
     end
@@ -114,11 +106,13 @@ class ReportsController < ApplicationController
     if !params[:profiles] && !params[:profile_id]
       raise Exceptions::UnprocessableEntity, 'No such profiles param'
     end
+
     if params[:profile_id]
       profile = Report::Profile.find(params[:profile_id])
     else
       params[:profiles].each do |profile_id, active|
         next if !active
+
         profile = Report::Profile.find(profile_id)
       end
     end
@@ -130,38 +124,49 @@ class ReportsController < ApplicationController
     if !local_config || !local_config[:metric] || !local_config[:metric][params[:metric].to_sym]
       raise Exceptions::UnprocessableEntity, "No such metric #{params[:metric]}"
     end
+
     metric = local_config[:metric][params[:metric].to_sym]
 
-    #{"metric"=>"count", "year"=>2015, "month"=>10, "week"=>43, "day"=>20, "timeSlot"=>"year", "report"=>{"metric"=>"count", "year"=>2015, "month"=>10, "week"=>43, "day"=>20, "timeSlot"=>"year"}}
     if params[:timeRange] == 'realtime'
-      start = (Time.zone.now - 60.minutes).iso8601
-      stop = Time.zone.now.iso8601
+      start_at = (Time.zone.now - 60.minutes)
+      stop_at = Time.zone.now
       range = 'minute'
     elsif params[:timeRange] == 'day'
       date = Date.parse("#{params[:year]}-#{params[:month]}-#{params[:day]}").to_s
-      start = "#{date}T00:00:00Z"
-      stop = "#{date}T23:59:59Z"
+      start_at = Time.zone.parse("#{date}T00:00:00Z")
+      stop_at = Time.zone.parse("#{date}T23:59:59Z")
       range = 'hour'
     elsif params[:timeRange] == 'week'
-      start = Date.commercial(params[:year].to_i, params[:week].to_i).iso8601
-      stop = Date.parse(start).end_of_week.iso8601
+      start_week_at = Date.commercial(params[:year].to_i, params[:week].to_i)
+      stop_week_at = start_week_at.end_of_week
+      start_at = Time.zone.parse("#{start_week_at.year}-#{start_week_at.month}-#{start_week_at.day}T00:00:00Z")
+      stop_at = Time.zone.parse("#{stop_week_at.year}-#{stop_week_at.month}-#{stop_week_at.day}T23:59:59Z")
       range = 'week'
     elsif params[:timeRange] == 'month'
-      start = Date.parse("#{params[:year]}-#{params[:month]}-01}").iso8601
-      stop = Date.parse(start).end_of_month.iso8601
+      start_at = Time.zone.parse("#{params[:year]}-#{params[:month]}-01T00:00:00Z")
+      stop_at = Time.zone.parse("#{params[:year]}-#{params[:month]}-#{start_at.end_of_month.day}T23:59:59Z")
       range = 'day'
     else
-      start = "#{params[:year]}-01-01"
-      stop = Date.parse("#{params[:year]}-12-31").iso8601
+      start_at = Time.zone.parse("#{params[:year]}-01-01T00:00:00Z")
+      stop_at = Time.zone.parse("#{params[:year]}-12-31T23:59:59Z")
       range = 'month'
     end
+    params[:timezone] ||= Setting.get('timezone_default')
+    if params[:timezone].present? && params[:timeRange] != 'realtime'
+      offset = stop_at.in_time_zone(params[:timezone]).utc_offset
+      start_at -= offset
+      stop_at -= offset
+    end
+
     {
-      profile: profile,
-      metric: metric,
-      config: local_config,
-      start: start,
-      stop: stop,
-      range: range,
+      profile:         profile,
+      metric:          metric,
+      config:          local_config,
+      start:           start_at,
+      stop:            stop_at,
+      range:           range,
+      timezone:        params[:timezone],
+      timezone_offset: offset,
     }
   end
 
@@ -208,6 +213,19 @@ class ReportsController < ApplicationController
     worksheet.write_string(2, 11, 'Created at', format_header)
     worksheet.write_string(2, 12, 'Updated at', format_header)
     worksheet.write_string(2, 13, 'Closed at', format_header)
+    # ObjectManager attributes
+    header_column = 14
+    # needs to be skipped
+    objects = ObjectManager::Attribute.where(editable:         true,
+                                             active:           true,
+                                             to_create:        false,
+                                             object_lookup_id: ObjectLookup.lookup(name: 'Ticket').id)
+                                      .pluck(:name, :display, :data_type, :data_option)
+                                      .map { |name, display, data_type, data_option| { name: name, display: display, data_type: data_type, data_option: data_option } }
+    objects.each do |object|
+      worksheet.write_string(2, header_column, object[:display].capitalize, format_header)
+      header_column += 1
+    end
 
     row = 2
     result[:ticket_ids].each do |ticket_id|
@@ -227,7 +245,24 @@ class ReportsController < ApplicationController
         worksheet.write_string(row, 10, ticket.tag_list.join(','))
         worksheet.write_date_time(row, 11, ticket.created_at.to_time.iso8601)
         worksheet.write_date_time(row, 12, ticket.updated_at.to_time.iso8601)
-        worksheet.write_date_time(row, 13, ticket.close_at.to_time.iso8601)
+        worksheet.write_date_time(row, 13, ticket.close_at.to_time.iso8601) if ticket.close_at.present?
+        # Object Manager attributes
+        column = 14
+        # We already queried ObjectManager::Attributes, so we just use objects
+        objects.each do |object|
+          key = object[:name]
+          case object[:data_type]
+          when 'boolean', 'select'
+            value = object[:data_option]['options'][ticket.send(key.to_sym)]
+            worksheet.write_string(row, column, value)
+          when 'datetime', 'date'
+            worksheet.write_date_time(row, column, ticket.send(key.to_sym).to_time.iso8601) if ticket.send(key.to_sym).present?
+          else
+            # for text, integer and tree select
+            worksheet.write_string(row, column, ticket.send(key.to_sym))
+          end
+          column += 1
+        end
       rescue => e
         Rails.logger.error "SKIP: #{e.message}"
       end

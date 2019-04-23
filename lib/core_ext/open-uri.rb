@@ -1,11 +1,10 @@
 # rubocop:disable Naming/FileName
-# rubocop:disable Style/CommentedKeyword
 if Kernel.respond_to?(:open_uri_original_open)
   module Kernel
     private
 
     # see: https://github.com/ruby/ruby/pull/1675
-    def open(name, *rest, &block) # :doc:
+    def open(name, *rest, &block)
       if name.respond_to?(:open) && name.method(:open).parameters.present?
         name.open(*rest, &block)
       elsif name.respond_to?(:to_str) &&
@@ -16,6 +15,7 @@ if Kernel.respond_to?(:open_uri_original_open)
         open_uri_original_open(name, *rest, &block)
       end
     end
-    module_function :open
+    module_function :open # rubocop:disable Style/AccessModifierDeclarations
   end
 end
+# rubocop:enable Naming/FileName

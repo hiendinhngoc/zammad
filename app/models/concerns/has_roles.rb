@@ -30,7 +30,7 @@ module HasRoles
       groups:   {
         active: true
       },
-      roles: {
+      roles:    {
         active: true
       }
     )
@@ -84,6 +84,7 @@ module HasRoles
 
     def ensure_group_id_parameter(group_or_id)
       return group_or_id if group_or_id.is_a?(Integer)
+
       group_or_id.id
     end
 

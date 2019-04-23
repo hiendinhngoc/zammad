@@ -29,8 +29,8 @@ class ExternalCredential < ApplicationModel
 
   def self.load_backend(provider)
     adapter = "ExternalCredential::#{provider.camelcase}"
-    require adapter.to_filename.to_s
-    load_adapter(adapter)
+    require_dependency adapter.to_filename.to_s
+    adapter.constantize
   end
 
 end

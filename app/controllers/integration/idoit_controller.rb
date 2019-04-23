@@ -8,7 +8,7 @@ class Integration::IdoitController < ApplicationController
   def verify
     response = ::Idoit.verify(params[:api_token], params[:endpoint], params[:client_id])
     render json: {
-      result: 'ok',
+      result:   'ok',
       response: response,
     }
   rescue => e
@@ -23,7 +23,7 @@ class Integration::IdoitController < ApplicationController
   def query
     response = ::Idoit.query(params[:method], params[:filter])
     render json: {
-      result: 'ok',
+      result:   'ok',
       response: response,
     }
   rescue => e
@@ -38,10 +38,12 @@ class Integration::IdoitController < ApplicationController
   def update
     params[:object_ids] ||= []
     ticket = Ticket.find(params[:ticket_id])
-    access!(ticket, 'read')
-    ticket.preferences[:idoit] ||= {}
-    ticket.preferences[:idoit][:object_ids] = Array(params[:object_ids]).uniq
-    ticket.save!
+    ticket.with_lock do
+      access!(ticket, 'read')
+      ticket.preferences[:idoit] ||= {}
+      ticket.preferences[:idoit][:object_ids] = Array(params[:object_ids]).uniq
+      ticket.save!
+    end
 
     render json: {
       result: 'ok',

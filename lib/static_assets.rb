@@ -9,6 +9,7 @@ returns
   {
     mime_type: 'image/png',
     content: image_bin_content,
+    file_extention: 'png',
   }
 
 =end
@@ -18,6 +19,9 @@ returns
     if data_url =~ /^data:(.+?);base64,(.+?)$/
       data[:mime_type] = $1
       data[:content]   = Base64.decode64($2)
+      if data[:mime_type] =~ %r{/(.+?)$}
+        data[:file_extention] = $1
+      end
       return data
     end
     raise "Unable to parse data url: #{data_url.substr(0, 100)}"
@@ -38,11 +42,11 @@ returns
   def self.store_raw(content, content_type)
     Store.remove(object: 'System::Logo', o_id: 1)
     file = Store.add(
-      object: 'System::Logo',
-      o_id: 1,
-      data: content,
-      filename: 'logo_raw',
-      preferences: {
+      object:        'System::Logo',
+      o_id:          1,
+      data:          content,
+      filename:      'logo_raw',
+      preferences:   {
         'Content-Type' => content_type
       },
       created_by_id: 1,
@@ -67,6 +71,7 @@ returns
     if list && list[0]
       return Store.find( list[0] )
     end
+
     raise 'No such raw logo!'
   end
 
@@ -85,11 +90,11 @@ returns
   def self.store(content, content_type)
     Store.remove(object: 'System::Logo', o_id: 2)
     file = Store.add(
-      object: 'System::Logo',
-      o_id: 2,
-      data: content,
-      filename: 'logo',
-      preferences: {
+      object:        'System::Logo',
+      o_id:          2,
+      data:          content,
+      filename:      'logo',
+      preferences:   {
         'Content-Type' => content_type
       },
       created_by_id: 1,
@@ -163,6 +168,7 @@ sync image to fs (public/assets/images/hash.png)
   def self.sync
     file = read
     return if !file
+
     path = Rails.root.join('public', 'assets', 'images', filename(file))
     File.open(path, 'wb') do |f|
       f.puts file.content

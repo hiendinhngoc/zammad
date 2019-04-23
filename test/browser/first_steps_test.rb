@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class FirstStepsTest < TestCase
@@ -11,7 +10,7 @@ class FirstStepsTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -23,22 +22,24 @@ class FirstStepsTest < TestCase
 
     # invite agent (with more then one group)
     click(css: '.active.content .js-inviteAgent')
-    sleep 4
+
+    modal_ready()
+
     set(
-      css: '.modal [name="firstname"]',
+      css:   '.modal [name="firstname"]',
       value: 'Bob',
     )
     set(
-      css: '.modal [name="lastname"]',
+      css:   '.modal [name="lastname"]',
       value: 'Smith',
     )
     set(
-      css: '.modal [name="email"]',
+      css:   '.modal [name="email"]',
       value: "#{agent}@example.com",
     )
     check(css: '.modal .js-groupListItem[value=full]')
     click(
-      css: '.modal button.btn.btn--primary',
+      css:  '.modal button.btn.btn--primary',
       fast: true,
     )
     watch_for(
@@ -49,28 +50,29 @@ class FirstStepsTest < TestCase
       css:   'body div.modal',
       value: 'Sending',
     )
+    modal_disappear()
 
     # invite customer
     click(css: '.active.content .js-inviteCustomer')
-    sleep 4
+    modal_ready()
     set(
-      css: '.modal [name="firstname"]',
+      css:   '.modal [name="firstname"]',
       value: 'Client',
     )
     set(
-      css: '.modal [name="lastname"]',
+      css:   '.modal [name="lastname"]',
       value: 'Smith',
     )
     set(
-      css: '.modal [name="email"]',
+      css:   '.modal [name="email"]',
       value: "#{customer}@example.com",
     )
     set(
-      css: '.modal [data-name="note"]',
+      css:   '.modal [data-name="note"]',
       value: 'some note',
     )
     click(
-      css: '.modal button.btn.btn--primary',
+      css:  '.modal button.btn.btn--primary',
       fast: true,
     )
     watch_for(
@@ -81,24 +83,28 @@ class FirstStepsTest < TestCase
       css:   'body div.modal',
       value: 'Sending',
     )
+    modal_disappear()
 
     # test ticket
     click(
-      css: '.active.content .js-testTicket',
+      css:  '.active.content .js-testTicket',
       fast: true,
     )
+    modal_ready()
     watch_for(
       css:   'body div.modal',
       value: 'A Test Ticket has been created',
     )
     click(
-      css: '.modal .modal-body',
+      css:  '.modal .modal-body',
       fast: true,
     )
     watch_for_disappear(
       css:   'body div.modal',
       value: 'Test Ticket',
     )
+    modal_disappear()
+
     execute(
       js: '$(".active.content .sidebar").show()',
     )
@@ -112,13 +118,14 @@ class FirstStepsTest < TestCase
     click(css: '.active.content a[href="#channels/form"]')
     sleep 2
     switch(
-      css: '.content.active .js-formSetting',
+      css:  '.content.active .js-formSetting',
       type: 'on',
     )
     click(css: '#navigation a[href="#dashboard"]')
     hit = false
     37.times do
       next if !@browser.find_elements(css: '.active.content a[href="#channels/form"].todo.is-done')[0]
+
       hit = true
       break
     end

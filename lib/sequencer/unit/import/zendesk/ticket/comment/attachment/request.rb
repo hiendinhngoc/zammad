@@ -25,6 +25,7 @@ class Sequencer
 
                 def failed?
                   return false if response.success?
+
                   logger.error response.error
                   true
                 end
@@ -35,8 +36,8 @@ class Sequencer
                       resource.content_url,
                       {},
                       {
-                        open_timeout: 10,
-                        read_timeout: 60,
+                        open_timeout: 20,
+                        read_timeout: 240,
                       },
                     )
                   end

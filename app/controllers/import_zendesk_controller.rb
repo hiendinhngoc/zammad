@@ -1,6 +1,4 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
-require 'zendesk_api'
-
 class ImportZendeskController < ApplicationController
 
   def url_check
@@ -9,7 +7,7 @@ class ImportZendeskController < ApplicationController
     # validate
     if params[:url].blank? || params[:url] !~ %r{^(http|https)://.+?$}
       render json: {
-        result: 'invalid',
+        result:  'invalid',
         message: 'Invalid URL!',
       }
       return
@@ -33,17 +31,17 @@ class ImportZendeskController < ApplicationController
         end
       end
       render json: {
-        result: 'invalid',
+        result:        'invalid',
         message_human: message_human,
-        message: response.error.to_s,
+        message:       response.error.to_s,
       }
       return
     end
 
     # since 2016-10-15 a redirect to a marketing page has been implemented
-    if response.body !~ /#{params[:url]}/
+    if !response.body.match?(/#{params[:url]}/)
       render json: {
-        result: 'invalid',
+        result:        'invalid',
         message_human: 'Hostname not found!',
       }
       return
@@ -55,7 +53,7 @@ class ImportZendeskController < ApplicationController
 
     render json: {
       result: 'ok',
-      url: params[:url],
+      url:    params[:url],
     }
   end
 
@@ -65,7 +63,7 @@ class ImportZendeskController < ApplicationController
     if !params[:username] || !params[:token]
 
       render json: {
-        result: 'invalid',
+        result:        'invalid',
         message_human: 'Incomplete credentials',
       }
       return
@@ -82,7 +80,7 @@ class ImportZendeskController < ApplicationController
       Setting.set('import_zendesk_endpoint_key', nil)
 
       render json: {
-        result: 'invalid',
+        result:        'invalid',
         message_human: 'Invalid credentials!',
       }
       return
@@ -95,6 +93,7 @@ class ImportZendeskController < ApplicationController
 
   def import_start
     return if setup_done_response
+
     Setting.set('import_mode', true)
     Setting.set('import_backend', 'zendesk')
 
@@ -131,6 +130,7 @@ class ImportZendeskController < ApplicationController
     if !setup_done
       return false
     end
+
     render json: {
       setup_done: true,
     }

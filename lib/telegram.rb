@@ -38,6 +38,7 @@ returns
     if callback_url.match?(%r{^http://}i)
       raise 'webhook url need to start with https://, you use http://'
     end
+
     api = TelegramAPI.new(token)
     begin
       api.setWebhook(callback_url)
@@ -73,6 +74,7 @@ returns
     if params[:group_id].blank?
       raise 'Group needed!'
     end
+
     group = Group.find_by(id: params[:group_id])
     if !group
       raise 'Group invalid!'
@@ -97,16 +99,16 @@ returns
     end
     channel.area = 'Telegram::Bot'
     channel.options = {
-      bot: {
-        id: bot['id'],
-        username: bot['username'],
+      bot:            {
+        id:         bot['id'],
+        username:   bot['username'],
         first_name: bot['first_name'],
-        last_name: bot['last_name'],
+        last_name:  bot['last_name'],
       },
       callback_token: callback_token,
-      callback_url: callback_url,
-      api_token: token,
-      welcome: params[:welcome],
+      callback_url:   callback_url,
+      api_token:      token,
+      welcome:        params[:welcome],
     }
     channel.group_id = group.id
     channel.active = true
@@ -133,6 +135,7 @@ returns
       next if !channel.options[:bot][:id]
       next if channel.options[:bot][:id] != bot_id
       next if channel.id.to_s == channel_id.to_s
+
       return true
     end
     false
@@ -177,6 +180,7 @@ returns
     %i[message edited_message].each do |key|
       next if !params[key]
       next if !params[key][:message_id]
+
       message_id = params[key][:message_id]
       break
     end
@@ -185,6 +189,7 @@ returns
         next if !params[key]
         next if !params[key][:chat]
         next if !params[key][:chat][:id]
+
         message_id = "#{message_id}.#{params[key][:chat][:id]}"
       end
     end
@@ -213,6 +218,7 @@ returns
 
   def message(chat_id, message)
     return if Rails.env.test?
+
     @api.sendMessage(chat_id, message)
   end
 
@@ -226,8 +232,8 @@ returns
   end
 
   def to_user(params)
-    Rails.logger.debug 'Create user from message...'
-    Rails.logger.debug params.inspect
+    Rails.logger.debug { 'Create user from message...' }
+    Rails.logger.debug { params.inspect }
 
     # do message_user lookup
     message_user = user(params)
@@ -237,9 +243,9 @@ returns
     # create or update user
     login = message_user[:username] || message_user[:id]
     user_data = {
-      login: login,
+      login:     login,
       firstname: message_user[:first_name],
-      lastname: message_user[:last_name],
+      lastname:  message_user[:last_name],
     }
     if auth
       user = User.find(auth.user_id)
@@ -272,16 +278,17 @@ returns
   def to_ticket(params, user, group_id, channel)
     UserInfo.current_user_id = user.id
 
-    Rails.logger.debug 'Create ticket from message...'
-    Rails.logger.debug params.inspect
-    Rails.logger.debug user.inspect
-    Rails.logger.debug group_id.inspect
+    Rails.logger.debug { 'Create ticket from message...' }
+    Rails.logger.debug { params.inspect }
+    Rails.logger.debug { user.inspect }
+    Rails.logger.debug { group_id.inspect }
 
     # prepare title
     title = '-'
     %i[text caption].each do |area|
       next if !params[:message]
       next if !params[:message][area]
+
       title = params[:message][area]
       break
     end
@@ -291,6 +298,7 @@ returns
           next if !params[:message]
           next if !params[:message][area]
           next if !params[:message][area][:emoji]
+
           title = params[:message][area][:emoji]
           break
         rescue
@@ -321,15 +329,15 @@ returns
     end
 
     ticket = Ticket.new(
-      group_id: group_id,
-      title: title,
-      state_id: Ticket::State.find_by(default_create: true).id,
+      group_id:    group_id,
+      title:       title,
+      state_id:    Ticket::State.find_by(default_create: true).id,
       priority_id: Ticket::Priority.find_by(default_create: true).id,
       customer_id: user.id,
       preferences: {
         channel_id: channel.id,
-        telegram: {
-          bid: params['bid'],
+        telegram:   {
+          bid:     params['bid'],
           chat_id: params[:message][:chat][:id]
         }
       },
@@ -341,39 +349,39 @@ returns
   def to_article(params, user, ticket, channel, article = nil)
 
     if article
-      Rails.logger.debug 'Update article from message...'
+      Rails.logger.debug { 'Update article from message...' }
     else
-      Rails.logger.debug 'Create article from message...'
+      Rails.logger.debug { 'Create article from message...' }
     end
-    Rails.logger.debug params.inspect
-    Rails.logger.debug user.inspect
-    Rails.logger.debug ticket.inspect
+    Rails.logger.debug { params.inspect }
+    Rails.logger.debug { user.inspect }
+    Rails.logger.debug { ticket.inspect }
 
     UserInfo.current_user_id = user.id
 
     if article
       article.preferences[:edited_message] = {
-        message: {
+        message:   {
           created_at: params[:message][:date],
           message_id: params[:message][:message_id],
-          from: params[:message][:from],
+          from:       params[:message][:from],
         },
         update_id: params[:update_id],
       }
     else
       article = Ticket::Article.new(
-        ticket_id: ticket.id,
-        type_id: Ticket::Article::Type.find_by(name: 'telegram personal-message').id,
-        sender_id: Ticket::Article::Sender.find_by(name: 'Customer').id,
-        from: user(params)[:username],
-        to: "@#{channel[:options][:bot][:username]}",
-        message_id: Telegram.message_id(params),
-        internal: false,
+        ticket_id:   ticket.id,
+        type_id:     Ticket::Article::Type.find_by(name: 'telegram personal-message').id,
+        sender_id:   Ticket::Article::Sender.find_by(name: 'Customer').id,
+        from:        user(params)[:username],
+        to:          "@#{channel[:options][:bot][:username]}",
+        message_id:  Telegram.message_id(params),
+        internal:    false,
         preferences: {
-          message: {
+          message:   {
             created_at: params[:message][:date],
             message_id: params[:message][:message_id],
-            from: params[:message][:from],
+            from:       params[:message][:from],
           },
           update_id: params[:update_id],
         }
@@ -394,7 +402,8 @@ returns
           last_width = file['width'].to_i
           last_height = file['height'].to_i
         end
-        next unless file['width'].to_i < max_width && last_width < file['width'].to_i
+        next if file['width'].to_i >= max_width || file['width'].to_i <= last_width
+
         photo = file
         last_width = file['width'].to_i
         last_height = file['height'].to_i
@@ -409,6 +418,7 @@ returns
       if !result.success? || !result.body
         raise "Unable for download image from telegram: #{result.code}"
       end
+
       body = "<img style=\"width:#{last_width}px;height:#{last_height}px;\" src=\"data:image/png;base64,#{Base64.strict_encode64(result.body)}\">"
       if params[:message][:caption]
         body += "<br>#{params[:message][:caption].text2html}"
@@ -430,6 +440,7 @@ returns
         if !result.success? || !result.body
           raise "Unable for download image from telegram: #{result.code}"
         end
+
         body = "<img style=\"width:#{width}px;height:#{height}px;\" src=\"data:image/png;base64,#{Base64.strict_encode64(result.body)}\">"
       end
       document_result = download_file(params[:message][:document][:file_id])
@@ -438,13 +449,13 @@ returns
       article.save!
       Store.remove(
         object: 'Ticket::Article',
-        o_id: article.id,
+        o_id:   article.id,
       )
       Store.add(
-        object: 'Ticket::Article',
-        o_id: article.id,
-        data: document_result.body,
-        filename: params[:message][:document][:file_name],
+        object:      'Ticket::Article',
+        o_id:        article.id,
+        data:        document_result.body,
+        filename:    params[:message][:document][:file_name],
         preferences: {
           'Mime-Type' => params[:message][:document][:mime_type],
         },
@@ -464,13 +475,13 @@ returns
       article.save!
       Store.remove(
         object: 'Ticket::Article',
-        o_id: article.id,
+        o_id:   article.id,
       )
       Store.add(
-        object: 'Ticket::Article',
-        o_id: article.id,
-        data: document_result.body,
-        filename: params[:message][:voice][:file_path] || "audio-#{params[:message][:voice][:file_id]}.ogg",
+        object:      'Ticket::Article',
+        o_id:        article.id,
+        data:        document_result.body,
+        filename:    params[:message][:voice][:file_path] || "audio-#{params[:message][:voice][:file_id]}.ogg",
         preferences: {
           'Mime-Type' => params[:message][:voice][:mime_type],
         },
@@ -489,6 +500,7 @@ returns
         if !result.success? || !result.body
           raise "Unable for download image from telegram: #{result.code}"
         end
+
         body = "<img style=\"width:#{width}px;height:#{height}px;\" src=\"data:image/webp;base64,#{Base64.strict_encode64(result.body)}\">"
         article.content_type = 'text/html'
       elsif emoji
@@ -502,13 +514,13 @@ returns
         document_result = download_file(params[:message][:sticker][:file_id])
         Store.remove(
           object: 'Ticket::Article',
-          o_id: article.id,
+          o_id:   article.id,
         )
         Store.add(
-          object: 'Ticket::Article',
-          o_id: article.id,
-          data: document_result.body,
-          filename: params[:message][:sticker][:file_name] || "#{params[:message][:sticker][:set_name]}.webp",
+          object:      'Ticket::Article',
+          o_id:        article.id,
+          data:        document_result.body,
+          filename:    params[:message][:sticker][:file_name] || "#{params[:message][:sticker][:set_name]}.webp",
           preferences: {
             'Mime-Type' => 'image/webp', # mime type is not given from Telegram API but this is actually WebP
           },
@@ -529,64 +541,65 @@ returns
 
   def to_group(params, group_id, channel)
     # begin import
-    Rails.logger.debug 'import message'
+    Rails.logger.debug { 'import message' }
 
     # map channel_post params to message
     if params[:channel_post]
       return if params[:channel_post][:new_chat_title] # happens when channel title is renamed, we use [:chat][:title] already, safely ignore this.
+
       # note: used .blank? which is a rails method. empty? does not work on integers (values like date, width, height)  to check.
       # need delete_if to remove any empty hashes, .compact only removes keys with nil values.
       params[:message] = {
-        document: {
+        document:   {
           file_name: params.dig(:channel_post, :document, :file_name),
           mime_type: params.dig(:channel_post, :document, :mime_type),
-          file_id: params.dig(:channel_post, :document, :file_id),
+          file_id:   params.dig(:channel_post, :document, :file_id),
           file_size: params.dig(:channel_post, :document, :filesize),
-          thumb: {
-            file_id: params.dig(:channel_post, :document, :thumb, :file_id),
+          thumb:     {
+            file_id:   params.dig(:channel_post, :document, :thumb, :file_id),
             file_size: params.dig(:channel_post, :document, :thumb, :file_size),
-            width: params.dig(:channel_post, :document, :thumb, :width),
-            height: params.dig(:channel_post, :document, :thumb, :height)
+            width:     params.dig(:channel_post, :document, :thumb, :width),
+            height:    params.dig(:channel_post, :document, :thumb, :height)
           }.compact
         }.delete_if { |_, v| v.blank? },
-        voice: {
-          duration: params.dig(:channel_post, :voice, :duration),
+        voice:      {
+          duration:  params.dig(:channel_post, :voice, :duration),
           mime_type: params.dig(:channel_post, :voice, :mime_type),
-          file_id: params.dig(:channel_post, :voice, :file_id),
+          file_id:   params.dig(:channel_post, :voice, :file_id),
           file_size: params.dig(:channel_post, :voice, :file_size)
         }.compact,
-        sticker: {
-          width: params.dig(:channel_post, :sticker, :width),
-          height: params.dig(:channel_post, :sticker, :height),
-          emoji: params.dig(:channel_post, :sticker, :emoji),
-          set_name: params.dig(:channel_post, :sticker, :set_name),
-          file_id: params.dig(:channel_post, :sticker, :file_id),
+        sticker:    {
+          width:     params.dig(:channel_post, :sticker, :width),
+          height:    params.dig(:channel_post, :sticker, :height),
+          emoji:     params.dig(:channel_post, :sticker, :emoji),
+          set_name:  params.dig(:channel_post, :sticker, :set_name),
+          file_id:   params.dig(:channel_post, :sticker, :file_id),
           file_path: params.dig(:channel_post, :sticker, :file_path),
-          thumb: {
-            file_id: params.dig(:channel_post, :sticker, :thumb, :file_id),
+          thumb:     {
+            file_id:   params.dig(:channel_post, :sticker, :thumb, :file_id),
             file_size: params.dig(:channel_post, :sticker, :thumb, :file_size),
-            width: params.dig(:channel_post, :sticker, :thumb, :width),
-            height: params.dig(:channel_post, :sticker, :thumb, :file_id),
+            width:     params.dig(:channel_post, :sticker, :thumb, :width),
+            height:    params.dig(:channel_post, :sticker, :thumb, :file_id),
             file_path: params.dig(:channel_post, :sticker, :thumb, :file_path)
           }.compact
         }.delete_if { |_, v| v.blank? },
-        chat: {
-          id: params.dig(:channel_post, :chat, :id),
+        chat:       {
+          id:         params.dig(:channel_post, :chat, :id),
           first_name: params.dig(:channel_post, :chat, :title),
-          last_name: 'Channel',
-          username: "channel#{params.dig(:channel_post, :chat, :id)}"
+          last_name:  'Channel',
+          username:   "channel#{params.dig(:channel_post, :chat, :id)}"
         },
-        from: {
-          id: params.dig(:channel_post, :chat, :id),
+        from:       {
+          id:         params.dig(:channel_post, :chat, :id),
           first_name: params.dig(:channel_post, :chat, :title),
-          last_name: 'Channel',
-          username: "channel#{params.dig(:channel_post, :chat, :id)}"
+          last_name:  'Channel',
+          username:   "channel#{params.dig(:channel_post, :chat, :id)}"
         },
-        caption: (params.dig(:channel_post, :caption) ? params.dig(:channel_post, :caption) : {}),
-        date: params.dig(:channel_post, :date),
+        caption:    (params.dig(:channel_post, :caption) || {}),
+        date:       params.dig(:channel_post, :date),
         message_id: params.dig(:channel_post, :message_id),
-        text: params.dig(:channel_post, :text),
-        photo: (params[:channel_post][:photo].map { |photo| { file_id: photo[:file_id], file_size: photo[:file_size], width: photo[:width], height: photo[:height] } } if params.dig(:channel_post, :photo))
+        text:       params.dig(:channel_post, :text),
+        photo:      (params[:channel_post][:photo].map { |photo| { file_id: photo[:file_id], file_size: photo[:file_size], width: photo[:width], height: photo[:height] } } if params.dig(:channel_post, :photo))
       }.delete_if { |_, v| v.blank? }
       params.delete(:channel_post) # discard unused :channel_post hash
     end
@@ -595,22 +608,22 @@ returns
     if params[:edited_channel_post]
       # updates on telegram can only be on messages, no attachments
       params[:edited_message] = {
-        chat: {
-          id: params.dig(:edited_channel_post, :chat, :id),
+        chat:       {
+          id:         params.dig(:edited_channel_post, :chat, :id),
           first_name: params.dig(:edited_channel_post, :chat, :title),
-          last_name: 'Channel',
-          username:  "channel#{params.dig(:edited_channel_post, :chat, :id)}"
+          last_name:  'Channel',
+          username:   "channel#{params.dig(:edited_channel_post, :chat, :id)}"
         },
-        from: {
-          id: params.dig(:edited_channel_post, :chat, :id),
+        from:       {
+          id:         params.dig(:edited_channel_post, :chat, :id),
           first_name: params.dig(:edited_channel_post, :chat, :title),
-          last_name: 'Channel',
-          username:  "channel#{params.dig(:edited_channel_post, :chat, :id)}"
+          last_name:  'Channel',
+          username:   "channel#{params.dig(:edited_channel_post, :chat, :id)}"
         },
-        date: params.dig(:edited_channel_post, :date),
-        edit_date: params.dig(:edited_channel_post, :edit_date),
+        date:       params.dig(:edited_channel_post, :date),
+        edit_date:  params.dig(:edited_channel_post, :edit_date),
         message_id: params.dig(:edited_channel_post, :message_id),
-        text: params.dig(:edited_channel_post, :text)
+        text:       params.dig(:edited_channel_post, :text)
       }
       params.delete(:edited_channel_post) # discard unused :edited_channel_post hash
     end
@@ -624,6 +637,7 @@ returns
     if params[:edited_message]
       article = Ticket::Article.find_by(message_id: Telegram.message_id(params))
       return if !article
+
       params[:message] = params[:edited_message]
       user = to_user(params)
       to_article(params, user, article.ticket, channel, article)
@@ -660,12 +674,12 @@ returns
   def from_article(article)
 
     message = nil
-    Rails.logger.debug "Create telegram personal message from article to '#{article[:to]}'..."
+    Rails.logger.debug { "Create telegram personal message from article to '#{article[:to]}'..." }
 
     message = {}
     # TODO: create telegram message here
 
-    Rails.logger.debug message.inspect
+    Rails.logger.debug { message.inspect }
     message
   end
 
@@ -684,6 +698,7 @@ returns
     state = Ticket::State.find_by(default_create: true)
     return state if !ticket
     return ticket.state if ticket.state.id == state.id
+
     Ticket::State.find_by(default_follow_up: true)
   end
 

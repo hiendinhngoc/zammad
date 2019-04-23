@@ -1,16 +1,15 @@
 module Import
   module OTRS
     module ImportStats
-      # rubocop:disable Style/ModuleFunction
       extend self
 
       def current_state
         {
-          Base: {
+          Base:   {
             done:  base_done,
             total: base_total,
           },
-          User: {
+          User:   {
             done:  user_done,
             total: user_total,
           },

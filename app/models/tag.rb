@@ -1,8 +1,14 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
 class Tag < ApplicationModel
-  belongs_to :tag_object,       class_name: 'Tag::Object'
-  belongs_to :tag_item,         class_name: 'Tag::Item'
+
+  belongs_to :tag_object, class_name: 'Tag::Object'
+  belongs_to :tag_item,   class_name: 'Tag::Item'
+
+  # the noop is needed since Layout/EmptyLines detects
+  # the block commend below wrongly as the measurement of
+  # the wanted indentation of the rubocop re-enabling above
+  def noop; end
 
 =begin
 
@@ -35,8 +41,8 @@ add tags for certain object
     # create history
     Tag.create(
       tag_object_id: tag_object_id,
-      tag_item_id: tag_item_id,
-      o_id: data[:o_id],
+      tag_item_id:   tag_item_id,
+      o_id:          data[:o_id],
       created_by_id: data[:created_by_id],
     )
 
@@ -83,8 +89,8 @@ or by ids
     # create history
     result = Tag.where(
       tag_object_id: data[:tag_object_id],
-      tag_item_id: data[:tag_item_id],
-      o_id: data[:o_id],
+      tag_item_id:   data[:tag_item_id],
+      o_id:          data[:o_id],
     )
     result.each(&:destroy)
 
@@ -117,7 +123,7 @@ remove all tags of certain object
     # create history
     result = Tag.where(
       tag_object_id: data[:tag_object_id],
-      o_id: data[:o_id],
+      o_id:          data[:o_id],
     )
     result.each(&:destroy)
     true
@@ -141,17 +147,18 @@ returns
   def self.tag_list(data)
     tag_object_id_requested = Tag::Object.lookup(name: data[:object])
     return [] if !tag_object_id_requested
+
     tag_search = Tag.where(
       tag_object_id: tag_object_id_requested,
-      o_id: data[:o_id],
-    )
-    tags = []
-    tag_search.each do |tag|
+      o_id:          data[:o_id],
+    ).order(:id)
+
+    tag_search.each_with_object([]) do |tag, result|
       tag_item = Tag::Item.lookup(id: tag.tag_item_id)
       next if !tag_item
-      tags.push tag_item.name
+
+      result.push tag_item.name
     end
-    tags
   end
 
   class Object < ApplicationModel
@@ -228,8 +235,8 @@ rename tag items
           if Tag.find_by(tag_object_id: tag.tag_object_id, o_id: tag.o_id, tag_item_id: already_existing_tag.id)
             Tag.tag_remove(
               tag_object_id: tag.tag_object_id,
-              o_id: tag.o_id,
-              tag_item_id: old_tag_item.id,
+              o_id:          tag.o_id,
+              tag_item_id:   old_tag_item.id,
             )
             next
           end
@@ -242,7 +249,7 @@ rename tag items
           # touch reference objects
           Tag.touch_reference_by_params(
             object: tag_object.name,
-            o_id: tag.o_id,
+            o_id:   tag.o_id,
           )
         end
 
@@ -250,6 +257,8 @@ rename tag items
         old_tag_item.destroy
         return true
       end
+
+      update_referenced_objects(old_tag_item.name, new_tag_name)
 
       # update new tag name
       old_tag_item.name = new_tag_name
@@ -260,7 +269,7 @@ rename tag items
         tag_object = Tag::Object.lookup(id: tag.tag_object_id)
         Tag.touch_reference_by_params(
           object: tag_object.name,
-          o_id: tag.o_id,
+          o_id:   tag.o_id,
         )
       end
 
@@ -283,7 +292,7 @@ remove tag item (destroy with reverences)
         tag.destroy
         Tag.touch_reference_by_params(
           object: tag_object.name,
-          o_id: tag.o_id,
+          o_id:   tag.o_id,
         )
       end
       Tag::Item.find(id).destroy
@@ -293,6 +302,54 @@ remove tag item (destroy with reverences)
     def fill_namedowncase
       self.name_downcase = name.downcase
       true
+    end
+
+=begin
+
+  Update referenced objects such as triggers, overviews, schedulers, and postmaster filters
+
+  Specifically, the following fields are updated:
+
+  Overview.condition
+  Trigger.condition   Trigger.perform
+  Job.condition       Job.perform
+                      PostmasterFilter.perform
+
+=end
+
+    def self.update_referenced_objects(old_name, new_name)
+      objects = Overview.all + Trigger.all + Job.all + PostmasterFilter.all
+
+      objects.each do |object|
+        changed = false
+        if object.has_attribute?(:condition)
+          changed |= update_condition_hash object.condition, old_name, new_name
+        end
+        if object.has_attribute?(:perform)
+          changed |= update_condition_hash object.perform, old_name, new_name
+        end
+        object.save if changed
+      end
+    end
+
+    def self.update_condition_hash(hash, old_name, new_name)
+      changed = false
+      hash.each do |key, condition|
+        next if %w[ticket.tags x-zammad-ticket-tags].exclude? key
+        next if condition[:value].split(', ').exclude? old_name
+
+        condition[:value] = update_name(condition[:value], old_name, new_name)
+        changed = true
+      end
+      changed
+    end
+
+    def self.update_name(condition, old_name, new_name)
+      tags = condition.split(', ')
+      return new_name if tags.size == 1
+
+      tags = tags.map { |t| t == old_name ? new_name : t }
+      tags.join(', ')
     end
 
   end

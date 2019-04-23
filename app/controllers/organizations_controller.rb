@@ -63,10 +63,10 @@ curl http://localhost/api/v1/organizations -v -u #{login}:#{password}
     organizations = []
     if !current_user.permissions?(['admin.organization', 'ticket.agent'])
       if current_user.organization_id
-        organizations = Organization.where(id: current_user.organization_id).order(id: 'ASC').offset(offset).limit(per_page)
+        organizations = Organization.where(id: current_user.organization_id).order(id: :asc).offset(offset).limit(per_page)
       end
     else
-      organizations = Organization.all.order(id: 'ASC').offset(offset).limit(per_page)
+      organizations = Organization.all.order(id: :asc).offset(offset).limit(per_page)
     end
 
     if response_expand?
@@ -87,7 +87,7 @@ curl http://localhost/api/v1/organizations -v -u #{login}:#{password}
       end
       render json: {
         record_ids: item_ids,
-        assets: assets,
+        assets:     assets,
       }, status: :ok
       return
     end
@@ -224,27 +224,27 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
 
   # GET /api/v1/organizations/search
   def search
+    raise Exceptions::NotAuthorized if !current_user.permissions?(['admin.organization', 'ticket.agent'])
 
-    if !current_user.permissions?(['admin.organization', 'ticket.agent'])
-      raise Exceptions::NotAuthorized
+    per_page = params[:per_page] || params[:limit] || 100
+    per_page = per_page.to_i
+    if per_page > 500
+      per_page = 500
     end
-
-    # set limit for pagination if needed
-    if params[:page] && params[:per_page]
-      params[:limit] = params[:page].to_i * params[:per_page].to_i
-    end
-
-    if params[:limit] && params[:limit].to_i > 500
-      params[:limit] = 500
-    end
+    page = params[:page] || 1
+    page = page.to_i
+    offset = (page - 1) * per_page
 
     query = params[:query]
     if query.respond_to?(:permit!)
       query = query.permit!.to_h
     end
     query_params = {
-      query: query,
-      limit: params[:limit],
+      query:        query,
+      limit:        per_page,
+      offset:       offset,
+      sort_by:      params[:sort_by],
+      order_by:     params[:order_by],
       current_user: current_user,
     }
     if params[:role_ids].present?
@@ -253,12 +253,6 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
 
     # do query
     organization_all = Organization.search(query_params)
-
-    # do pagination if needed
-    if params[:page] && params[:per_page]
-      offset = (params[:page].to_i - 1) * params[:per_page].to_i
-      organization_all = organization_all[offset, params[:per_page].to_i] || []
-    end
 
     if response_expand?
       list = []
@@ -292,7 +286,7 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
 
       # return result
       render json: {
-        assets: assets,
+        assets:           assets,
         organization_ids: organization_ids.uniq,
       }
       return
@@ -307,20 +301,13 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
 
   # GET /api/v1/organizations/history/1
   def history
-
-    # permission check
-    if !current_user.permissions?(['admin.organization', 'ticket.agent'])
-      raise Exceptions::NotAuthorized
-    end
+    raise Exceptions::NotAuthorized if !current_user.permissions?(['admin.organization', 'ticket.agent'])
 
     # get organization data
     organization = Organization.find(params[:id])
 
     # get history of organization
-    history = organization.history_get(true)
-
-    # return result
-    render json: history
+    render json: organization.history_get(true)
   end
 
   # @path    [GET] /organizations/import_example
@@ -335,8 +322,8 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
     permission_check('admin.organization')
     send_data(
       Organization.csv_example,
-      filename: 'organization-example.csv',
-      type: 'text/csv',
+      filename:    'organization-example.csv',
+      type:        'text/csv',
       disposition: 'attachment'
     )
   end
@@ -352,12 +339,19 @@ curl http://localhost/api/v1/organization/{id} -v -u #{login}:#{password} -H "Co
   # @response_message 401 Invalid session.
   def import_start
     permission_check('admin.user')
+    string = params[:data]
+    if string.blank? && params[:file].present?
+      string = params[:file].read.force_encoding('utf-8')
+    end
+    raise Exceptions::UnprocessableEntity, 'No source data submitted!' if string.blank?
+
     result = Organization.csv_import(
-      string: params[:file].read.force_encoding('utf-8'),
+      string:       string,
       parse_params: {
-        col_sep: ';',
+        col_sep: params[:col_sep] || ',',
       },
-      try: params[:try],
+      try:          params[:try],
+      delete:       params[:delete],
     )
     render json: result, status: :ok
   end

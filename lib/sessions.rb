@@ -1,6 +1,3 @@
-require 'json'
-require 'session_helper'
-
 module Sessions
 
   # get application root directory
@@ -56,11 +53,12 @@ returns
 
     # send update to browser
     return if !session || session['id'].blank?
+
     send(
       client_id,
       {
         event: 'ws:login',
-        data: { success: true },
+        data:  { success: true },
       }
     )
   end
@@ -91,6 +89,7 @@ returns
       next if entry == '..'
       next if entry == 'tmp'
       next if entry == 'spool'
+
       data.push entry.to_s
     end
     data
@@ -111,8 +110,10 @@ returns
   def self.session_exists?(client_id)
     session_dir = "#{@path}/#{client_id}"
     return false if !File.exist?(session_dir)
+
     session_file = "#{session_dir}/session"
     return false if !File.exist?(session_file)
+
     true
   end
 
@@ -153,6 +154,7 @@ returns
     client_ids.each do |client_id|
       data = get(client_id)
       next if !data
+
       session_list[client_id] = data
     end
     session_list
@@ -214,6 +216,7 @@ returns
   def self.touch(client_id)
     data = get(client_id)
     return false if !data
+
     path = "#{@path}/#{client_id}"
     data[:meta][:last_ping] = Time.now.utc.to_i
     File.open("#{path}/session", 'wb' ) do |file|
@@ -309,6 +312,7 @@ returns
       end
     end
     return false if !File.directory? path
+
     begin
       File.open(location, 'wb') do |file|
         file.flock(File::LOCK_EX)
@@ -330,6 +334,15 @@ send message to recipient client
 
   Sessions.send_to(user_id, data)
 
+e. g.
+
+  Sessions.send_to(user_id, {
+    event: 'session:takeover',
+    data: {
+      taskbar_id: 12312
+    },
+  })
+
 returns
 
   true|false
@@ -346,6 +359,7 @@ returns
       next if !session[:user]
       next if !session[:user]['id']
       next if session[:user]['id'].to_i != user_id.to_i
+
       Sessions.send(client_id, data)
     end
     true
@@ -422,13 +436,16 @@ returns
     Dir.foreach(path) do |entry|
       next if entry == '.'
       next if entry == '..'
+
       files.push entry
     end
     files.sort.each do |entry|
       filename = "#{path}/#{entry}"
       next if entry !~ /^send/
+
       message = Sessions.queue_file_read(path, entry)
       next if !message
+
       data.push message
     end
     data
@@ -444,6 +461,7 @@ returns
     end
     File.delete(location)
     return if message.blank?
+
     begin
       return JSON.parse(message)
     rescue => e
@@ -462,16 +480,25 @@ remove all session and spool messages
 
   def self.cleanup
     return true if !File.exist?(@path)
+
     FileUtils.rm_rf @path
     true
   end
+
+=begin
+
+create spool messages
+
+  Sessions.spool_create(some: 'data')
+
+=end
 
   def self.spool_create(data)
     msg = JSON.generate(data)
     path = "#{@path}/spool/"
     FileUtils.mkpath path
     data = {
-      msg: msg,
+      msg:       msg,
       timestamp: Time.now.utc.to_i,
     }
     file_path = "#{path}/#{Time.now.utc.to_f}-#{rand(99_999)}"
@@ -482,6 +509,14 @@ remove all session and spool messages
     end
   end
 
+=begin
+
+get spool messages
+
+  Sessions.spool_list(junger_then, for_user_id)
+
+=end
+
   def self.spool_list(timestamp, current_user_id)
     path = "#{@path}/spool/"
     FileUtils.mkpath path
@@ -491,15 +526,18 @@ remove all session and spool messages
     Dir.foreach(path) do |entry|
       next if entry == '.'
       next if entry == '..'
+
       files.push entry
     end
     files.sort.each do |entry|
       filename = "#{path}/#{entry}"
       next if !File.exist?(filename)
+
       File.open(filename, 'rb') do |file|
         file.flock(File::LOCK_SH)
         message = file.read
         file.flock(File::LOCK_UN)
+        message_parsed = {}
         begin
           spool = JSON.parse(message)
           message_parsed = JSON.parse(spool['msg'])
@@ -518,7 +556,7 @@ remove all session and spool messages
         # add spool attribute to push spool info to clients
         message_parsed['spool'] = true
 
-        # only send not already now messages
+        # only send not already older messages
         if !timestamp || timestamp < spool['timestamp']
 
           # spool to recipient list
@@ -534,7 +572,7 @@ remove all session and spool messages
               end
 
               item = {
-                type: 'direct',
+                type:    'direct',
                 message: message,
               }
               data.push item
@@ -547,7 +585,7 @@ remove all session and spool messages
               message = message_parsed['data']
             end
             item = {
-              type: 'broadcast',
+              type:    'broadcast',
               message: message,
             }
             data.push item
@@ -559,6 +597,19 @@ remove all session and spool messages
       File.delete(file)
     end
     data
+  end
+
+=begin
+
+delete spool messages
+
+  Sessions.spool_delete
+
+=end
+
+  def self.spool_delete
+    path = "#{@path}/spool/"
+    FileUtils.rm_rf path
   end
 
   def self.jobs(node_id = nil)
@@ -613,6 +664,7 @@ remove all session and spool messages
         next if session_data.blank?
         next if session_data[:user].blank?
         next if session_data[:user]['id'].blank?
+
         user = User.lookup(id: session_data[:user]['id'])
         next if user.blank?
 
@@ -713,7 +765,7 @@ returns
   def self.log(level, message)
     if defined?(Rails)
       if level == 'debug'
-        Rails.logger.debug message
+        Rails.logger.debug { message }
       elsif level == 'notice'
         Rails.logger.notice message
       else

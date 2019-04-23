@@ -7,8 +7,12 @@ module HasGroups
 
     attr_accessor :group_access_buffer
 
-    after_create :process_group_access_buffer
-    after_update :process_group_access_buffer
+    after_save :process_group_access_buffer
+
+    # add association to Group, too but ignore it in asset output
+    Group.has_many group_through_identifier
+    Group.has_many model_name.collection.to_sym, through: group_through_identifier, after_add: :cache_update, after_remove: :cache_update, dependent: :destroy
+    Group.association_attributes_ignored group_through_identifier
 
     association_attributes_ignored :groups, group_through_identifier
 
@@ -34,7 +38,7 @@ module HasGroups
       # @return [ActiveRecord::AssociationRelation<[<Group]>] List of Groups with :through attributes
       def access(*access)
         table_name = proxy_association.owner.class.group_through.table_name
-        query      = select("groups.*, #{table_name}.*")
+        query      = select("#{ActiveRecord::Base.connection.quote_table_name('groups')}.*, #{ActiveRecord::Base.connection.quote_table_name(table_name)}.*")
         return query if access.blank?
 
         access.push('full') if !access.include?('full')
@@ -71,14 +75,15 @@ module HasGroups
     return true if group_through.klass.includes(:group).exists?(
       group_through.foreign_key => id,
       group_id: group_id,
-      access:   access,
-      groups:   {
+      access: access,
+      groups: {
         active: true
       }
     )
 
     # check indirect access through Roles if possible
     return false if !respond_to?(:role_access?)
+
     role_access?(group_id, access)
   end
 
@@ -129,8 +134,6 @@ module HasGroups
   #
   # @return [Array<Group>] Groups the instance has the given access(es) to.
   def groups_access(access)
-    return [] if !active?
-    return [] if !groups_access_permission?
     group_ids = group_ids_access(access)
     Group.where(id: group_ids)
   end
@@ -195,6 +198,7 @@ module HasGroups
   # @return [Boolean]
   def groups_access_permission?
     return true if !respond_to?(:permissions?)
+
     permissions?('ticket.agent')
   end
 
@@ -242,6 +246,7 @@ module HasGroups
     # if changes to the map were performed
     # otherwise it's just an update of other attributes
     return if group_access_buffer.nil?
+
     yield
     group_access_buffer = nil
     cache_delete
@@ -354,6 +359,7 @@ module HasGroups
 
     def ensure_group_id_parameter(group_or_id)
       return group_or_id if group_or_id.is_a?(Integer)
+
       group_or_id.id
     end
 

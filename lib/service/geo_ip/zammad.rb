@@ -1,7 +1,5 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
-require 'cache'
-
 class Service::GeoIp::Zammad
   def self.location(address)
     return {} if address == '127.0.0.1'
@@ -9,7 +7,7 @@ class Service::GeoIp::Zammad
 
     # check cache
     cache_key = "zammadgeoip::#{address}"
-    cache = Cache.get(cache_key)
+    cache = ::Cache.get(cache_key)
     return cache if cache
 
     # do lookup
@@ -21,9 +19,9 @@ class Service::GeoIp::Zammad
         "#{host}#{url}",
         {},
         {
-          json: true,
-          open_timeout: 2,
-          read_timeout: 4,
+          json:          true,
+          open_timeout:  2,
+          read_timeout:  4,
           total_timeout: 4,
         },
       )
@@ -38,10 +36,10 @@ class Service::GeoIp::Zammad
         data['country_code'] = data['country_code2']
       end
 
-      Cache.write(cache_key, data, { expires_in: 90.days })
+      ::Cache.write(cache_key, data, { expires_in: 90.days })
     rescue => e
       Rails.logger.error "#{host}#{url}: #{e.inspect}"
-      Cache.write(cache_key, data, { expires_in: 60.minutes })
+      ::Cache.write(cache_key, data, { expires_in: 60.minutes })
     end
     data
   end

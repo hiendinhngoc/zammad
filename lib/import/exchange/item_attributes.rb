@@ -11,7 +11,7 @@ module Import
       end
 
       def extract
-        @attributes ||= begin
+        @extract ||= begin
           properties  = @resource.get_all_properties!
           result      = normalize(properties)
           flattened   = flatten(result)
@@ -25,6 +25,7 @@ module Import
         properties.each do |key, value|
           if value.is_a?(String)
             next if !%w[true false].include?(value)
+
             properties[key] = value == 'true'
           elsif value.is_a?(Hash)
             properties[key] = booleanize_values(value)

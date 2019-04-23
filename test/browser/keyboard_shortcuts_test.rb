@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class KeyboardShortcutsTest < TestCase
@@ -7,7 +6,7 @@ class KeyboardShortcutsTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
     sleep 2
@@ -21,6 +20,7 @@ class KeyboardShortcutsTest < TestCase
       (1..4).each do |_count|
         sleep 1
         next if !@browser.find_elements(css: '.modal')[0]
+
         exists = true
       end
       if !exists
@@ -30,6 +30,7 @@ class KeyboardShortcutsTest < TestCase
         (1..4).each do |_count|
           sleep 1
           next if !@browser.find_elements(css: '.modal')[0]
+
           exists = true
         end
       end
@@ -37,27 +38,15 @@ class KeyboardShortcutsTest < TestCase
         shortcut(key: 'h')
       end
     end
-    watch_for(
-      css:     '.modal',
-      value:   'Keyboard Shortcuts',
-      timeout: 6,
-    )
 
+    modal_ready()
     # hide shortkeys
     shortcut(key: 'h')
-    watch_for_disappear(
-      css:     '.modal',
-      value:   'Keyboard Shortcuts',
-      timeout: 2,
-    )
+    modal_disappear()
 
     # show shortkeys
     shortcut(key: 'h')
-    watch_for(
-      css:     '.modal',
-      value:   'Keyboard Shortcuts',
-      timeout: 2,
-    )
+    modal_ready()
 
     # show notifications
     shortcut(key: 'a')
@@ -110,9 +99,9 @@ class KeyboardShortcutsTest < TestCase
     ticket1 = ticket_create(
       data: {
         customer: 'nico',
-        group: 'Users',
-        title: 'Test Ticket for Shortcuts - ABC123',
-        body: 'Test Ticket Body for Shortcuts - ABC123',
+        group:    'Users',
+        title:    'Test Ticket for Shortcuts - ABC123',
+        body:     'Test Ticket Body for Shortcuts - ABC123',
       },
     )
     sleep 5
@@ -201,19 +190,20 @@ class KeyboardShortcutsTest < TestCase
       browser:  @browser_agent,
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     ticket2 = ticket_create(
-      browser:  @browser_agent,
-      data: {
+      browser: @browser_agent,
+      data:    {
         customer: 'nico',
-        group: 'Users',
-        title: 'Test Ticket for Shortcuts II - ABC123',
-        body: 'Test Ticket Body for Shortcuts II - ABC123',
+        group:    'Users',
+        title:    'Test Ticket for Shortcuts II - ABC123',
+        body:     'Test Ticket Body for Shortcuts II - ABC123',
       },
     )
     sleep 5
     shortcut(key: 'a')
+    # flanky
     watch_for(
       css:     '.js-notificationsContainer',
       value:   'Test Ticket for Shortcuts II',

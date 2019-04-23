@@ -138,6 +138,9 @@ class App.TicketStats extends App.Controller
       )
 
 class App.TicketStatsList extends App.Controller
+  @extend App.PopoverProvidable
+  @registerPopovers 'Ticket'
+
   events:
     'click .js-showAll': 'showAll'
 
@@ -157,16 +160,22 @@ class App.TicketStatsList extends App.Controller
     else
       ticket_ids_show = @ticket_ids
 
+    tickets = (App.Ticket.fullLocal(id) for id in ticket_ids_show)
+    console.log tickets
+
     @html App.view('widget/ticket_stats_list')(
       user:            @user
       head:            @head
       iconClass:       @iconClass
+      ticketList:      App.view('generic/ticket_list')(
+        tickets: tickets
+      )
       ticket_ids:      @ticket_ids
       ticket_ids_show: ticket_ids_show
       limit:           @limit
     )
 
-    @ticketPopups()
+    @renderPopovers()
 
   showAll: (e) =>
     e.preventDefault()

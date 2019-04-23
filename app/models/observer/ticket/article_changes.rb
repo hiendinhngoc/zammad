@@ -27,7 +27,7 @@ class Observer::Ticket::ArticleChanges < ActiveRecord::Observer
       record.ticket.touch # rubocop:disable Rails/SkipsModelValidations
       return
     end
-    record.ticket.save
+    record.ticket.save!
   end
 
   def after_destroy(record)
@@ -50,6 +50,7 @@ class Observer::Ticket::ArticleChanges < ActiveRecord::Observer
     sender = Ticket::Article::Sender.lookup(name: 'System')
     count = Ticket::Article.where(ticket_id: record.ticket_id).where('sender_id NOT IN (?)', sender.id).count
     return false if current_count == count
+
     record.ticket.article_count = count
     true
   end
@@ -110,6 +111,18 @@ class Observer::Ticket::ArticleChanges < ActiveRecord::Observer
     ticket = record.ticket
     if sender.name == 'Customer'
 
+      # in case, update last_contact_customer_at on any customer follow up
+      if Setting.get('ticket_last_contact_behaviour') == 'based_on_customer_reaction'
+
+        # set last_contact_at customer
+        record.ticket.last_contact_customer_at = record.created_at
+
+        # set last_contact
+        record.ticket.last_contact_at = record.created_at
+
+        return true
+      end
+
       # if customer is sending agains, ignore update of last contact (usecase of update escalation)
       return false if ticket.last_contact_customer_at &&
                       ticket.last_contact_at &&
@@ -125,7 +138,6 @@ class Observer::Ticket::ArticleChanges < ActiveRecord::Observer
 
         # set last_contact
         record.ticket.last_contact_at = record.created_at
-
       end
       return true
     end

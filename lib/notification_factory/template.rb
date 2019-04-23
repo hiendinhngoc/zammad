@@ -17,43 +17,31 @@ examples how to use
   end
 
   def to_s
-    strip_html
+    @template.gsub(/\#{\s*(.*?)\s*}/m) do
+      # some browsers start adding HTML tags
+      # fixes https://github.com/zammad/zammad/issues/385
+      input_template = $1.gsub(/\A<.+?>\s*|\s*<.+?>\z/, '')
 
-    @template
-  end
-
-  def strip_html
-    # some browsers start adding HTML tags
-    # fixes https://github.com/zammad/zammad/issues/385
-    @template.gsub!(/\#\{\s*t\((.+?)\)\s*\}/m) do
-      content = $1
-      if content =~ /^'(.+?)'$/
-        "<%= t \"#{strip_content($1)}\", #{@escape} %>"
+      case input_template
+      when /\At\('(.+?)'\)\z/m
+        %(<%= t "#{sanitize_text($1)}", #{@escape} %>)
+      when /\At\((.+?)\)\z/m
+        %(<%= t d"#{sanitize_object_name($1)}", #{@escape} %>)
+      when /\Aconfig\.(.+?)\z/m
+        %(<%= c "#{sanitize_object_name($1)}", #{@escape} %>)
       else
-        "<%= t d\"#{strip_variable(content)}\", #{@escape} %>"
+        %(<%= d "#{sanitize_object_name(input_template)}", #{@escape} %>)
       end
     end
-    @template.gsub!(/\#\{\s*config\.(.+?)\s*\}/m) do
-      "<%= c \"#{strip_variable($1)}\", #{@escape} %>"
-    end
-    @template.gsub!(/\#\{(.*?)\}/m) do
-      "<%= d \"#{strip_variable($1)}\", #{@escape} %>"
-    end
   end
 
-  def strip_content(string)
-    return string if !string
-    string.gsub!(/\t|\r|\n/, '')
-    string.gsub!(/"/, '\"')
-    string
+  def sanitize_text(string)
+    string&.tr("\t\r\n", '')
+          &.gsub(/(?<!\\)(?=")/, '\\')
   end
 
-  def strip_variable(string)
-    return string if !string
-    string.gsub!(/\t|\r|\n|"|'|§|;/, '')
-    string.gsub!(/\s*/, '')
-    string.gsub!(/<.+?>/, '')
-    string
+  def sanitize_object_name(string)
+    string&.tr("\t\r\n\f \"'§;", '')
   end
 
 end

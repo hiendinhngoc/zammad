@@ -46,12 +46,14 @@ module Import
 
       def create_or_update(article)
         return if updated?(article)
+
         create(article)
       end
 
       def updated?(article)
         @local_article = ::Ticket::Article.find_by(id: article[:id])
         return false if !@local_article
+
         log "update Ticket::Article.find_by(id: #{article[:id]})"
         @local_article.update!(article)
         true
@@ -89,6 +91,7 @@ module Import
         # so Zammad can set the default content type
         mapped.delete(:content_type) if mapped[:content_type].blank?
         return mapped if !mapped[:content_type]
+
         mapped[:content_type].sub!(/[;,]\s?.+?$/, '')
         mapped
       end
@@ -125,19 +128,19 @@ module Import
             type_id:  article_type_id_lookup('email'),
             internal: true
           },
-          'note-external' => {
+          'note-external'  => {
             type_id:  article_type_id_lookup('note'),
             internal: false
           },
-          'note-internal' => {
+          'note-internal'  => {
             type_id:  article_type_id_lookup('note'),
             internal: true
           },
-          'phone' => {
+          'phone'          => {
             type_id:  article_type_id_lookup('phone'),
             internal: false
           },
-          'webrequest' => {
+          'webrequest'     => {
             type_id:  article_type_id_lookup('web'),
             internal: false
           },

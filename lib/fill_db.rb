@@ -17,6 +17,9 @@ fill your database with demo records
 or if you only want to create 100 tickets
 
   FillDB.load(tickets: 100)
+  FillDB.load(agents: 20)
+  FillDB.load(overviews: 20)
+  FillDB.load(tickets: 10000)
 
 =end
 
@@ -64,14 +67,14 @@ or if you only want to create 100 tickets
         ActiveRecord::Base.transaction do
           suffix = rand(99_999).to_s
           user = User.create_or_update(
-            login: "filldb-agent-#{suffix}",
+            login:     "filldb-agent-#{suffix}",
             firstname: "agent #{suffix}",
-            lastname: "agent #{suffix}",
-            email: "filldb-agent-#{suffix}@example.com",
-            password: 'agentpw',
-            active: true,
-            roles: roles,
-            groups: groups_all,
+            lastname:  "agent #{suffix}",
+            email:     "filldb-agent-#{suffix}@example.com",
+            password:  'agentpw',
+            active:    true,
+            roles:     roles,
+            groups:    groups_all,
           )
           sleep nice
           agent_pool.push user
@@ -96,14 +99,14 @@ or if you only want to create 100 tickets
             organization = organization_pool[ organization_pool.length - 1 ]
           end
           user = User.create_or_update(
-            login: "filldb-customer-#{suffix}",
-            firstname: "customer #{suffix}",
-            lastname: "customer #{suffix}",
-            email: "filldb-customer-#{suffix}@example.com",
-            password: 'customerpw',
-            active: true,
+            login:        "filldb-customer-#{suffix}",
+            firstname:    "customer #{suffix}",
+            lastname:     "customer #{suffix}",
+            email:        "filldb-customer-#{suffix}@example.com",
+            password:     'customerpw',
+            active:       true,
             organization: organization,
-            roles: roles,
+            roles:        roles,
           )
           sleep nice
           customer_pool.push user
@@ -141,25 +144,25 @@ or if you only want to create 100 tickets
       (1..overviews).each do
         ActiveRecord::Base.transaction do
           overview = Overview.create!(
-            name: "Filloverview::#{rand(999_999)}",
-            role_ids: [Role.find_by(name: 'Agent').id],
+            name:      "Filloverview::#{rand(999_999)}",
+            role_ids:  [Role.find_by(name: 'Agent').id],
             condition: {
               'ticket.state_id' => {
                 operator: 'is',
-                value: Ticket::State.by_category(:work_on_all).pluck(:id),
+                value:    Ticket::State.by_category(:work_on_all).pluck(:id),
               },
             },
-            order: {
-              by: 'created_at',
+            order:     {
+              by:        'created_at',
               direction: 'ASC',
             },
-            view: {
-              d: %w[title customer group state owner created_at],
-              s: %w[title customer group state owner created_at],
-              m: %w[number title customer group state owner created_at],
+            view:      {
+              d:                 %w[title customer group state owner created_at],
+              s:                 %w[title customer group state owner created_at],
+              m:                 %w[number title customer group state owner created_at],
               view_mode_default: 's',
             },
-            active: true
+            active:    true
           )
         end
       end
@@ -170,32 +173,33 @@ or if you only want to create 100 tickets
     state_pool = Ticket::State.all
 
     return if !tickets || tickets.zero?
+
     (1..tickets).each do
       ActiveRecord::Base.transaction do
         customer = customer_pool[ rand(customer_pool.length - 1) ]
         agent    = agent_pool[ rand(agent_pool.length - 1) ]
         ticket = Ticket.create!(
-          title: "some title äöüß#{rand(999_999)}",
-          group: group_pool[ rand(group_pool.length - 1) ],
-          customer: customer,
-          owner: agent,
-          state: state_pool[ rand(state_pool.length - 1) ],
-          priority: priority_pool[ rand(priority_pool.length - 1) ],
+          title:         "some title äöüß#{rand(999_999)}",
+          group:         group_pool[ rand(group_pool.length - 1) ],
+          customer:      customer,
+          owner:         agent,
+          state:         state_pool[ rand(state_pool.length - 1) ],
+          priority:      priority_pool[ rand(priority_pool.length - 1) ],
           updated_by_id: agent.id,
           created_by_id: agent.id,
         )
 
         # create article
         article = Ticket::Article.create!(
-          ticket_id: ticket.id,
-          from: customer.email,
-          to: 'some_recipient@example.com',
-          subject: "some subject#{rand(999_999)}",
-          message_id: "some@id-#{rand(999_999)}",
-          body: 'some message ...',
-          internal: false,
-          sender: Ticket::Article::Sender.where(name: 'Customer').first,
-          type: Ticket::Article::Type.where(name: 'phone').first,
+          ticket_id:     ticket.id,
+          from:          customer.email,
+          to:            'some_recipient@example.com',
+          subject:       "some subject#{rand(999_999)}",
+          message_id:    "some@id-#{rand(999_999)}",
+          body:          'some message ...',
+          internal:      false,
+          sender:        Ticket::Article::Sender.where(name: 'Customer').first,
+          type:          Ticket::Article::Type.where(name: 'phone').first,
           updated_by_id: agent.id,
           created_by_id: agent.id,
         )
@@ -205,3 +209,4 @@ or if you only want to create 100 tickets
     end
   end
 end
+# rubocop:enable Rails/Output

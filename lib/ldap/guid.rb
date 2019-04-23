@@ -76,7 +76,7 @@ class Ldap
     #
     # @return [String] The GUID equivalent of the HEX string.
     def string
-      oracle_raw16(guid.unpack('H*').first, dashify: true)
+      oracle_raw16(guid.unpack1('H*'), dashify: true)
     end
 
     private
@@ -96,6 +96,7 @@ class Ldap
 
       # add dashes if requested
       return result if !dashify
+
       [
         result[0..7],
         result[8..11],

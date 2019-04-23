@@ -9,10 +9,10 @@ class App.Collection
       _instance ?= new _collectionSingleton
     _instance.load(args)
 
-  @loadAssets: (args) ->
+  @loadAssets: (args, params) ->
     if _instance == undefined
       _instance ?= new _collectionSingleton
-    _instance.loadAssets(args)
+    _instance.loadAssets(args, params)
 
   @reset: (args) ->
     if _instance == undefined
@@ -63,19 +63,25 @@ class _collectionSingleton extends Spine.Module
     # reset in-memory
     appObject.refresh(params.data, clear: true)
 
-  loadAssets: (assets) ->
+  loadAssets: (assets, params = {}) ->
     return if _.isEmpty(assets)
 
     # process not existing assets first / to avoid not exising ref errors
     loadAssetsLater = {}
     for type, collections of assets
-      later = @load(type: type, data: collections, later: true)
-      if !_.isEmpty(later)
-        loadAssetsLater[type] = later
+      if !params.targetModel || params.targetModel isnt type
+        later = @load(type: type, data: collections, later: true)
+        if !_.isEmpty(later)
+          loadAssetsLater[type] = later
 
     # process existing assets
     for type, collections of loadAssetsLater
       App[type].refresh(collections)
+
+    if params.targetModel
+      for type, collections of assets
+        if params.targetModel is type
+          @load(type: type, data: collections)
 
   load: (params) ->
 
@@ -104,19 +110,18 @@ class _collectionSingleton extends Spine.Module
         # check if new object is newer, just load newer objects
         if object.updated_at
           currentUpdatedAt = appObject.updatedAt(key)
-          objectToLoad = undefined
           if currentUpdatedAt
             if currentUpdatedAt < object.updated_at
-              objectToLoad = object
-              @log 'debug', 'refresh newer', params.type, key
+              if params.later
+                listToRefreshLater.push object
+                @log 'debug', 'refresh newer later', params.type, key
+              else
+                listToRefresh.push object
+                @log 'debug', 'refresh newer', params.type, key
+
           else
-            objectToLoad = object
-            @log 'debug', 'refresh try no updated_at', params.type, key
-          if objectToLoad
-            if params.later
-              listToRefreshLater.push objectToLoad
-            else
-              listToRefresh.push object
+            listToRefresh.push object
+            @log 'debug', 'refresh new no current updated_at', params.type, key
         else
           listToRefresh.push object
           @log 'debug', 'refresh new', params.type, key

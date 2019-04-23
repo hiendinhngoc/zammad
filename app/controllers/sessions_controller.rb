@@ -2,7 +2,7 @@
 
 class SessionsController < ApplicationController
   prepend_before_action :authentication_check, only: %i[switch_to_user list delete]
-  skip_before_action :verify_csrf_token, only: %i[create show destroy create_omniauth create_sso]
+  skip_before_action :verify_csrf_token, only: %i[show destroy create_omniauth failure_omniauth create_sso]
 
   # "Create" a login, aka "log the user in"
   def create
@@ -51,12 +51,12 @@ class SessionsController < ApplicationController
 
     # return new session data
     render  status: :created,
-            json: {
-              session: user,
-              config: config_frontend,
-              models: models,
+            json:   {
+              session:     user,
+              config:      config_frontend,
+              models:      models,
               collections: collections,
-              assets: assets,
+              assets:      assets,
             }
   end
 
@@ -69,14 +69,14 @@ class SessionsController < ApplicationController
       user_id = session[:user_id]
     end
 
-    if !user_id
+    if !user_id || !User.exists?(user_id)
       # get models
       models = SessionHelper.models()
 
       render json: {
-        error: 'no valid session',
-        config: config_frontend,
-        models: models,
+        error:       'no valid session',
+        config:      config_frontend,
+        models:      models,
         collections: {
           Locale.to_app_model => Locale.where(active: true)
         },
@@ -103,23 +103,24 @@ class SessionsController < ApplicationController
 
     # return current session
     render json: {
-      session: user,
-      config: config_frontend,
-      models: models,
+      session:     user,
+      config:      config_frontend,
+      models:      models,
       collections: collections,
-      assets: assets,
+      assets:      assets,
     }
   end
 
   # "Delete" a login, aka "log the user out"
   def destroy
 
+    reset_session
+
     # Remove the user id from the session
     @_current_user = nil
 
     # reset session
     request.env['rack.session.options'][:expire_after] = nil
-    session.clear
 
     render json: {}
   end
@@ -164,6 +165,10 @@ class SessionsController < ApplicationController
     redirect_to '/'
   end
 
+  def failure_omniauth
+    raise Exceptions::UnprocessableEntity, "Message from #{params[:strategy]}: #{params[:message]}"
+  end
+
   def create_sso
 
     # in case, remove switched_from_user_id
@@ -201,7 +206,7 @@ class SessionsController < ApplicationController
     # check user
     if !params[:id]
       render(
-        json: { message: 'no user given' },
+        json:   { message: 'no user given' },
         status: :not_found
       )
       return false
@@ -210,7 +215,7 @@ class SessionsController < ApplicationController
     user = User.find(params[:id])
     if !user
       render(
-        json: {},
+        json:   {},
         status: :not_found
       )
       return false
@@ -227,7 +232,7 @@ class SessionsController < ApplicationController
 
     render(
       json: {
-        success: true,
+        success:  true,
         location: '',
       },
     )
@@ -237,15 +242,12 @@ class SessionsController < ApplicationController
   def switch_back_to_user
 
     # check if it's a swich back
-    if !session[:switched_from_user_id]
-      response_access_deny
-      return false
-    end
+    raise Exceptions::NotAuthorized if !session[:switched_from_user_id]
 
     user = User.lookup(id: session[:switched_from_user_id])
     if !user
       render(
-        json: {},
+        json:   {},
         status: :not_found
       )
       return false
@@ -265,7 +267,7 @@ class SessionsController < ApplicationController
 
     render(
       json: {
-        success: true,
+        success:  true,
         location: '',
       },
     )
@@ -283,15 +285,18 @@ class SessionsController < ApplicationController
     sessions_clean = []
     SessionHelper.list.each do |session|
       next if session.data['user_id'].blank?
+
       sessions_clean.push session
       next if session.data['user_id']
+
       user = User.lookup(id: session.data['user_id'])
       next if !user
+
       assets = user.assets(assets)
     end
     render json: {
       sessions: sessions_clean,
-      assets: assets,
+      assets:   assets,
     }
   end
 
@@ -309,8 +314,10 @@ class SessionsController < ApplicationController
     config = {}
     Setting.select('name, preferences').where(frontend: true).each do |setting|
       next if setting.preferences[:authentication] == true && !current_user
+
       value = Setting.get(setting.name)
       next if !current_user && (value == false || value.nil?)
+
       config[setting.name] = value
     end
 

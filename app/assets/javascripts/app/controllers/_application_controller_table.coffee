@@ -90,18 +90,15 @@
 
 ###
 class App.ControllerTable extends App.Controller
-  minColWidth: 40
+  minColWidth: 30
   baseColWidth: 130
   minTableWidth: 612
 
-  checkBoxColWidth: 40
+  checkBoxColWidth: 30
   radioColWidth: 22
   sortableColWidth: 36
   destroyColWidth: 70
   cloneColWidth: 70
-
-  elements:
-    '.js-tableHead': 'tableHead'
 
   events:
     'click .js-sort': 'sortByColumn'
@@ -113,6 +110,7 @@ class App.ControllerTable extends App.Controller
   radio:              false
   renderState:        undefined
   groupBy:            undefined
+  groupDirection:     undefined
 
   shownPerPage: 150
   shownPage: 0
@@ -166,12 +164,22 @@ class App.ControllerTable extends App.Controller
       for key, value of data.headerWidth
         @headerWidth[key] = value
 
-    @availableWidth = @el.width()
+    if !@availableWidth
+      @availableWidth = @el.width()
+      if @availableWidth is 0
+        @availableWidth = @minTableWidth
 
     @renderQueue()
 
+  show: =>
+    return if @windowIsResized isnt true
+    @windowIsResized = false
+    @onResize()
+
+  hide: ->
+
   release: =>
-    $(window).off 'resize.table', @onResize
+    $(window).off('resize.table', @onResize)
 
   update: (params) =>
     if params.sync is true
@@ -213,12 +221,12 @@ class App.ControllerTable extends App.Controller
       if _.isEmpty(@objects)
         @renderState = 'emptyList'
         @el.html(@renderEmptyList())
-        $(window).on 'resize.table', @onResize
+        $(window).on('resize.table', @onResize)
         return ['emptyList.new']
       else
         @renderState = 'List'
         @renderTableFull()
-        $(window).on 'resize.table', @onResize
+        $(window).on('resize.table', @onResize)
         return ['fullRender.new']
     else if @renderState is 'emptyList' && !_.isEmpty(@objects)
       @renderState = 'List'
@@ -341,7 +349,7 @@ class App.ControllerTable extends App.Controller
               do (container, event, callback) ->
                 if cursorMap[event]
                   container.find("tbody > tr > td:nth-child(#{position})").css('cursor', cursorMap[event])
-                container.on( event, "tbody > tr > td:nth-child(#{position})",
+                container.on(event, "tbody > tr > td:nth-child(#{position})",
                   (e) ->
                     e.stopPropagation()
                     id = $(e.target).parents('tr').data('id')
@@ -355,7 +363,7 @@ class App.ControllerTable extends App.Controller
           do (container, event, callback) ->
             if cursorMap[event]
               container.find('tbody > tr').css( 'cursor', cursorMap[event] )
-            container.on( event, 'tbody > tr',
+            container.on(event, 'tbody > tr',
               (e) ->
                 id = $(e.target).parents('tr').data('id')
                 callback(id, e)
@@ -377,8 +385,8 @@ class App.ControllerTable extends App.Controller
     if @tableId
 
       # enable resize column
-      container.on 'mousedown', '.js-col-resize', @onColResizeMousedown
-      container.on 'click', '.js-col-resize', @stopPropagation
+      container.on('mousedown', '.js-col-resize', @onColResizeMousedown)
+      container.on('click', '.js-col-resize', @stopPropagation)
 
     # enable checkbox bulk selection
     if @checkbox
@@ -411,6 +419,12 @@ class App.ControllerTable extends App.Controller
         return if !@bindCheckbox
         return if !@bindCheckbox.events
         return if _.isEmpty(clicks)
+
+        # If a select_all callback exists, then trigger it once insteading of triggering the callback once for each checkbox
+        if @bindCheckbox.select_all
+          @bindCheckbox.select_all(clicks[0]..., e)
+          return
+
         for event, callback of @bindCheckbox.events
           if event == 'click' || event == 'change'
             for click in clicks
@@ -466,6 +480,7 @@ class App.ControllerTable extends App.Controller
     if @checkbox || @radio
       columnsLength++
     groupLast = ''
+    groupLastName = ''
     tableBody = []
     objectsToShow = @objectsOfPage(@shownPage)
     for object in objectsToShow
@@ -473,16 +488,31 @@ class App.ControllerTable extends App.Controller
         position++
         if @groupBy
           groupByName = App.viewPrint(object, @groupBy, @attributesList)
-          if groupLast isnt groupByName
-            groupLast = groupByName
+          if groupLastName isnt groupByName
+            groupLastName = groupByName
             tableBody.push @renderTableGroupByRow(object, position, groupByName)
         tableBody.push @renderTableRow(object, position)
     tableBody
 
   renderTableGroupByRow: (object, position, groupByName) =>
+    ui_table_group_by_show_count = @Config.get('ui_table_group_by_show_count')
+    groupByCount = undefined
+    if ui_table_group_by_show_count is true
+      groupBy = @groupBy
+      groupLast = object[@groupBy]
+      if !groupLast
+        groupBy = "#{@groupBy}_id"
+        groupLast = object[groupBy]
+      groupByCount = 0
+      if @objects
+        for localObject in @objects
+          if localObject[groupBy] is groupLast
+            groupByCount += 1
+
     App.view('generic/table_row_group_by')(
       position:      position
       groupByName:   groupByName
+      groupByCount:  groupByCount
       columnsLength: @columnsLength
     )
 
@@ -579,14 +609,15 @@ class App.ControllerTable extends App.Controller
         callback: (id) =>
           item = @model.find(id)
           item.name = "Clone: #{item.name}"
-          new App.ControllerGenericNew
+          new App.ControllerGenericNew(
             item: item
             pageData:
-              object: item.constructor.name
+              object: item.constructor.className
             callback: =>
               @renderTableFull()
-            genericObject: item.constructor.name
+            genericObject: item.constructor.className
             container:     @container
+          )
 
     if @destroy
       @actions.push
@@ -602,20 +633,19 @@ class App.ControllerTable extends App.Controller
 
     if @actions.length
       @headers.push
-        name: 'action'
-        display: 'Action'
-        width: '38px'
-        displayWidth: 38
-        unresizeable: true
-        align: 'right'
-        parentClass: 'noTruncate no-padding'
+        name:         'action'
+        display:      'Action'
+        width:        '50px'
+        displayWidth: 50
+        align:        'right'
+        parentClass:  'noTruncate no-padding'
+        unresizable:  true
 
       @bindCol['action'] =
         events:
           click: @toggleActionDropdown
 
-    if @tableId
-      @calculateHeaderWidths()
+    @calculateHeaderWidths()
 
     @columnsLength = @headers.length
     if @checkbox || @radio
@@ -647,11 +677,22 @@ class App.ControllerTable extends App.Controller
     @lastOrderDirection = orderDirection
     @lastOrderBy = orderBy
 
+    # Underscore's sortBy cannot deal with null values, so we replace null values with a place holder string
+    sortBy = (list, iteratee) ->
+      _.sortBy(
+        list
+        (item) ->
+          res = iteratee(item)
+          return res if res
+          # null values are considered lexicographically "last"
+          '\uFFFF'
+      )
+
     localObjects is undefined
     if orderBy
       for header in @headers
         if header.name is orderBy || "#{header.name}_id" is orderBy || header.name is "#{orderBy}_id"
-          localObjects = _.sortBy(
+          localObjects = sortBy(
             @objects
             (item) ->
 
@@ -754,6 +795,9 @@ class App.ControllerTable extends App.Controller
       for key of groupObjects
         groupsSorted.push key
       groupsSorted = groupsSorted.sort()
+      # Reverse the sorted groups depending on the groupDirection
+      if @groupDirection == 'DESC'
+        groupsSorted.reverse()
 
       # get new order
       localObjects = []
@@ -791,10 +835,8 @@ class App.ControllerTable extends App.Controller
       @runAction(name, id)
 
   calculateHeaderWidths: ->
+    return if !@tableId
     return if !@headers
-
-    if @availableWidth is 0
-      @availableWidth = @minTableWidth
 
     availableWidth = @availableWidth
 
@@ -811,10 +853,10 @@ class App.ControllerTable extends App.Controller
     roundingLeftOver = availableWidth - @getHeaderWidths()
 
     # but only if there is something left over (will get negative when there are too many columns for each column to stay in their min width)
-    if roundingLeftOver > 0
+    if roundingLeftOver > 0 && roundingLeftOver < 10
       @headers[@headers.length - 1].displayWidth = @headers[@headers.length - 1].displayWidth + roundingLeftOver
 
-    @storeHeaderWidths()
+    true
 
   getShrinkableHeadersCount: ->
     _.reduce @headers, (memo, col) ->
@@ -844,10 +886,12 @@ class App.ControllerTable extends App.Controller
     widths
 
   setHeaderWidths: =>
-    @calculateHeaderWidths()
+    return if !@calculateHeaderWidths()
 
-    @tableHead.each (i, el) =>
+    @$('.js-tableHead').each (i, el) =>
       el.style.width = @headers[i].displayWidth + 'px'
+
+    @storeHeaderWidths()
 
   storeHeaderWidths: ->
     widths = {}
@@ -858,8 +902,19 @@ class App.ControllerTable extends App.Controller
     App.LocalStorage.set(@preferencesStoreKey(), { headerWidth: widths }, @Session.get('id'))
 
   onResize: =>
-    @availableWidth = @el.width()
-    @setHeaderWidths()
+    localWidth = @el.width()
+    if localWidth is 0
+      @windowIsResized = true
+      return
+
+    @availableWidth = localWidth
+    localDelay = =>
+      localSetHeaderWidths = =>
+        @setHeaderWidths()
+      App.QueueManager.add('tableRender', localSetHeaderWidths)
+      App.QueueManager.run('tableRender')
+
+    @delay(localDelay, 200, 'table-resize-finish')
 
   stopPropagation: (event) ->
     event.stopPropagation()
@@ -871,8 +926,8 @@ class App.ControllerTable extends App.Controller
     @resizeLeftStartWidth = @resizeTargetLeft.width()
     @resizeRightStartWidth = @resizeTargetRight.width()
 
-    $(document).on 'mousemove.resizeCol', @onColResizeMousemove
-    $(document).one 'mouseup', @onColResizeMouseup
+    $(document).on('mousemove.resizeCol', @onColResizeMousemove)
+    $(document).one('mouseup', @onColResizeMouseup)
 
     @tableWidth = @el.width()
 
@@ -890,7 +945,7 @@ class App.ControllerTable extends App.Controller
     @resizeTargetRight.width @resizeRightStartWidth - difference
 
   onColResizeMouseup: =>
-    $(document).off 'mousemove.resizeCol'
+    $(document).off('mousemove.resizeCol')
 
     # switch to percentage
     resizeBaseWidth = @resizeTargetLeft.parents('table').width()

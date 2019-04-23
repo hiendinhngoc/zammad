@@ -2,9 +2,9 @@
 
 class Trigger < ApplicationModel
   include ChecksConditionValidation
+  include ChecksPerformValidation
   include CanSeed
 
-  load 'trigger/assets.rb'
   include Trigger::Assets
 
   store     :condition

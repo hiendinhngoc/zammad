@@ -29,15 +29,16 @@ class OwnModel < ApplicationModel
 
     # return if we run import mode
     return if Setting.get('import_mode')
-    logger.debug "#{self.class.name}.find(#{id}) notify created " + created_at.to_s
+
+    logger.debug { "#{self.class.name}.find(#{id}) notify created #{created_at}" }
     class_name = self.class.name
     class_name.gsub!(/::/, '')
     PushMessages.send(
       message: {
         event: class_name + ':create',
-        data: { id: id, updated_at: updated_at }
+        data:  { id: id, updated_at: updated_at }
       },
-      type: 'authenticated',
+      type:    'authenticated',
     )
   end
 
@@ -61,15 +62,16 @@ class OwnModel < ApplicationModel
 
     # return if we run import mode
     return if Setting.get('import_mode')
-    logger.debug "#{self.class.name}.find(#{id}) notify UPDATED " + updated_at.to_s
+
+    logger.debug { "#{self.class.name}.find(#{id}) notify UPDATED #{updated_at}" }
     class_name = self.class.name
     class_name.gsub!(/::/, '')
     PushMessages.send(
       message: {
         event: class_name + ':update',
-        data: { id: id, updated_at: updated_at }
+        data:  { id: id, updated_at: updated_at }
       },
-      type: 'authenticated',
+      type:    'authenticated',
     )
   end
 
@@ -93,15 +95,16 @@ class OwnModel < ApplicationModel
 
     # return if we run import mode
     return if Setting.get('import_mode')
-    logger.debug "#{self.class.name}.find(#{id}) notify TOUCH " + updated_at.to_s
+
+    logger.debug { "#{self.class.name}.find(#{id}) notify TOUCH #{updated_at}" }
     class_name = self.class.name
     class_name.gsub!(/::/, '')
     PushMessages.send(
       message: {
         event: class_name + ':touch',
-        data: { id: id, updated_at: updated_at }
+        data:  { id: id, updated_at: updated_at }
       },
-      type: 'authenticated',
+      type:    'authenticated',
     )
   end
 
@@ -124,15 +127,16 @@ class OwnModel < ApplicationModel
 
     # return if we run import mode
     return if Setting.get('import_mode')
-    logger.debug "#{self.class.name}.find(#{id}) notify DESTOY " + updated_at.to_s
+
+    logger.debug { "#{self.class.name}.find(#{id}) notify DESTOY #{updated_at}" }
     class_name = self.class.name
     class_name.gsub!(/::/, '')
     PushMessages.send(
       message: {
         event: class_name + ':destroy',
-        data: { id: id, updated_at: updated_at }
+        data:  { id: id, updated_at: updated_at }
       },
-      type: 'authenticated',
+      type:    'authenticated',
     )
   end
 end

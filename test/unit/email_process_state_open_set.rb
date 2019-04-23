@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class EmailProcessStateOpenSet < ActiveSupport::TestCase
@@ -7,26 +6,26 @@ class EmailProcessStateOpenSet < ActiveSupport::TestCase
     groups = Group.all
     roles = Role.where(name: 'Agent')
     @agent1 = User.create_or_update(
-      login: 'agent-ticket-state-open-set@example.com',
-      firstname: 'StateOpenSet',
-      lastname: 'Agent1',
-      email: 'agent-ticket-state-open-set@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
+      login:         'agent-ticket-state-open-set@example.com',
+      firstname:     'StateOpenSet',
+      lastname:      'Agent1',
+      email:         'agent-ticket-state-open-set@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
       updated_by_id: 1,
       created_by_id: 1,
     )
     roles = Role.where(name: 'Customer')
     @customer1 = User.create_or_update(
-      login: 'customer-ticket-state-open-set@example.com',
-      firstname: 'StateOpenSet',
-      lastname: 'Customer',
-      email: 'customer-ticket-state-open-set@example.com',
-      password: 'customerpw',
-      active: true,
-      roles: roles,
+      login:         'customer-ticket-state-open-set@example.com',
+      firstname:     'StateOpenSet',
+      lastname:      'Customer',
+      email:         'customer-ticket-state-open-set@example.com',
+      password:      'customerpw',
+      active:        true,
+      roles:         roles,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -52,11 +51,11 @@ Some Text"
     assert_equal('Customer', ticket.customer.lastname)
 
     article = Ticket::Article.create!(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.find_by(name: 'email').id,
-      sender_id: Ticket::Article::Sender.find_by(name: 'Customer').id,
-      body: 'test',
-      internal: false,
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.find_by(name: 'email').id,
+      sender_id:     Ticket::Article::Sender.find_by(name: 'Customer').id,
+      body:          'test',
+      internal:      false,
       updated_by_id: @customer1.id,
       created_by_id: @customer1.id,
     )
@@ -71,11 +70,11 @@ Some Text"
     assert_equal('Customer', ticket.customer.lastname)
 
     article = Ticket::Article.create!(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.find_by(name: 'email').id,
-      sender_id: Ticket::Article::Sender.find_by(name: 'Agent').id,
-      body: 'test',
-      internal: false,
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.find_by(name: 'email').id,
+      sender_id:     Ticket::Article::Sender.find_by(name: 'Agent').id,
+      body:          'test',
+      internal:      false,
       updated_by_id: @agent1.id,
       created_by_id: @agent1.id,
     )
@@ -111,11 +110,11 @@ Some Text"
     assert_equal('Customer', ticket.customer.lastname)
 
     article = Ticket::Article.create!(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.find_by(name: 'email').id,
-      sender_id: Ticket::Article::Sender.find_by(name: 'Customer').id,
-      body: 'test',
-      internal: false,
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.find_by(name: 'email').id,
+      sender_id:     Ticket::Article::Sender.find_by(name: 'Customer').id,
+      body:          'test',
+      internal:      false,
       updated_by_id: @customer1.id,
       created_by_id: @customer1.id,
     )
@@ -130,11 +129,11 @@ Some Text"
     assert_equal('Customer', ticket.customer.lastname)
 
     article = Ticket::Article.create!(
-      ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.find_by(name: 'email').id,
-      sender_id: Ticket::Article::Sender.find_by(name: 'Agent').id,
-      body: 'test',
-      internal: false,
+      ticket_id:     ticket.id,
+      type_id:       Ticket::Article::Type.find_by(name: 'email').id,
+      sender_id:     Ticket::Article::Sender.find_by(name: 'Agent').id,
+      body:          'test',
+      internal:      false,
       updated_by_id: @agent1.id,
       created_by_id: @agent1.id,
     )

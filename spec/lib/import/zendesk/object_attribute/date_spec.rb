@@ -1,9 +1,11 @@
 require 'rails_helper'
+require 'lib/import/zendesk/object_attribute/base_examples'
 
 # required due to some of rails autoloading issues
 require 'import/zendesk/object_attribute/date'
 
 RSpec.describe Import::Zendesk::ObjectAttribute::Date do
+  it_behaves_like Import::Zendesk::ObjectAttribute::Base
 
   it 'imports date object attribute from date object field' do
 
@@ -20,26 +22,26 @@ RSpec.describe Import::Zendesk::ObjectAttribute::Date do
     )
 
     expected_structure = {
-      object:      'Ticket',
-      name:        'example_field',
-      display:     'Example attribute',
-      data_type:   'date',
-      data_option: {
+      object:        'Ticket',
+      name:          'example_field',
+      display:       'Example attribute',
+      data_type:     'date',
+      data_option:   {
         null:   false,
         note:   'Example attribute description',
         future: true,
         past:   true,
         diff:   0,
       },
-      editable: true,
-      active:   true,
-      screens:  {
+      editable:      true,
+      active:        true,
+      screens:       {
         edit: {
           Customer: {
             shown: true,
-            null: false
+            null:  false
           },
-          view: {
+          view:     {
             '-all-' => {
               shown: true
             }

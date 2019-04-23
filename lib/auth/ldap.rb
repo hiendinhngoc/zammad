@@ -1,13 +1,14 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
-require 'ldap'
-require 'ldap/user'
+require_dependency 'ldap'
+require_dependency 'ldap/user'
 
 class Auth
   class Ldap < Auth::Base
 
     def valid?(user, password)
       return false if !Setting.get('ldap_integration')
+
       ldap_user = ::Ldap::User.new()
 
       # get from config or fallback to login

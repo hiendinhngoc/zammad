@@ -15,6 +15,7 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
     @last_overview        = {}
     @last_overview_change = nil
     @last_ticket_change   = nil
+    @time_now             = Time.zone.now.to_i
   end
 
   def load
@@ -45,6 +46,7 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
       return true
     end
     return false if Sessions::CacheIn.get(client_key)
+
     true
   end
 
@@ -59,6 +61,7 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
     last_overview_change = Overview.latest_change
     last_ticket_change = Ticket.latest_change
     return if last_ticket_change == @last_ticket_change && last_overview_change == @last_overview_change
+
     @last_overview_change = last_overview_change
     @last_ticket_change = last_ticket_change
 
@@ -72,9 +75,9 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
       assets = {}
       overview = Overview.lookup(id: index[:overview][:id])
       meta = {
-        name: overview.name,
-        prio: overview.prio,
-        link: overview.link,
+        name:  overview.name,
+        prio:  overview.prio,
+        link:  overview.link,
         count: index[:count],
       }
       indexes.push meta
@@ -83,9 +86,11 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
       @client.log "push overview_index for user #{@user.id}"
       @client.send(
         event: 'ticket_overview_index',
-        data: indexes,
+        data:  indexes,
       )
     end
+
+    @time_now = Time.zone.now.to_i
 
     # push overviews
     results = []
@@ -93,16 +98,22 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
 
       # do not deliver unchanged lists
       next if @last_overview[data[:overview][:id]] == data
+
       @last_overview[data[:overview][:id]] = data
 
       assets = {}
       overview = Overview.lookup(id: data[:overview][:id])
+      next if !overview
+
       if asset_needed?(overview)
         assets = asset_push(overview, assets)
       end
       data[:tickets].each do |ticket_meta|
         next if !asset_needed_by_updated_at?('Ticket', ticket_meta[:id], ticket_meta[:updated_at])
+
         ticket = Ticket.lookup(id: ticket_meta[:id])
+        next if !ticket
+
         assets = asset_push(ticket, assets)
       end
       data[:assets] = assets
@@ -110,21 +121,21 @@ class Sessions::Backend::TicketOverviewList < Sessions::Backend::Base
       if !@client
         result = {
           event: 'ticket_overview_list',
-          data: data,
+          data:  data,
         }
         results.push result
       else
-
         @client.log "push overview_list #{overview.link} for user #{@user.id}"
 
         # send update to browser
         @client.send(
           event: 'ticket_overview_list',
-          data: data,
+          data:  data,
         )
       end
     end
     return results if !@client
+
     nil
   end
 

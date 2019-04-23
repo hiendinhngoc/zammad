@@ -1,26 +1,33 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 class Ticket::Article < ApplicationModel
+  include CanBeImported
   include HasActivityStreamLog
   include ChecksClientNotification
   include HasHistory
   include ChecksHtmlSanitized
   include CanCsvImport
-  include Ticket::Article::ChecksAccess
+  include HasObjectManagerAttributesValidation
 
-  load 'ticket/article/assets.rb'
+  include Ticket::Article::ChecksAccess
   include Ticket::Article::Assets
 
-  belongs_to    :ticket
-  has_one       :ticket_time_accounting, class_name: 'Ticket::TimeAccounting', foreign_key: :ticket_article_id, dependent: :destroy
-  belongs_to    :type,        class_name: 'Ticket::Article::Type'
-  belongs_to    :sender,      class_name: 'Ticket::Article::Sender'
-  belongs_to    :created_by,  class_name: 'User'
-  belongs_to    :updated_by,  class_name: 'User'
-  belongs_to    :origin_by,   class_name: 'User'
-  store         :preferences
+  belongs_to :ticket
+  has_one    :ticket_time_accounting, class_name: 'Ticket::TimeAccounting', foreign_key: :ticket_article_id, dependent: :destroy, inverse_of: :ticket_article
+  belongs_to :type,       class_name: 'Ticket::Article::Type'
+  belongs_to :sender,     class_name: 'Ticket::Article::Sender'
+  belongs_to :created_by, class_name: 'User'
+  belongs_to :updated_by, class_name: 'User'
+  belongs_to :origin_by,  class_name: 'User'
+
   before_create :check_subject, :check_body, :check_message_id_md5
   before_update :check_subject, :check_body, :check_message_id_md5
   after_destroy :store_delete
+
+  store :preferences
+
+  validates :ticket_id, presence: true
+  validates :type_id, presence: true
+  validates :sender_id, presence: true
 
   sanitized_html :body
 
@@ -38,9 +45,13 @@ class Ticket::Article < ApplicationModel
                              :to,
                              :cc
 
+  attr_accessor :should_clone_inline_attachments
+  alias should_clone_inline_attachments? should_clone_inline_attachments
+
   # fillup md5 of message id to search easier on very long message ids
   def check_message_id_md5
     return true if message_id.blank?
+
     self.message_id_md5 = Digest::MD5.hexdigest(message_id.to_s)
   end
 
@@ -71,7 +82,8 @@ returns
       # look for attachment
       article['attachments'].each do |file|
         next if !file[:preferences] || !file[:preferences]['Content-ID'] || (file[:preferences]['Content-ID'] != cid && file[:preferences]['Content-ID'] != "<#{cid}>" )
-        replace = "#{tag_start}/api/v1/ticket_attachment/#{article['ticket_id']}/#{article['id']}/#{file[:id]}\"#{tag_end}>"
+
+        replace = "#{tag_start}/api/v1/ticket_attachment/#{article['ticket_id']}/#{article['id']}/#{file[:id]}?view=inline\"#{tag_end}>"
         inline_attachments[file[:id]] = true
         break
       end
@@ -80,6 +92,7 @@ returns
     new_attachments = []
     article['attachments'].each do |file|
       next if inline_attachments[file[:id]]
+
       new_attachments.push file
     end
     article['attachments'] = new_attachments
@@ -106,7 +119,9 @@ returns
 
       # look for attachment
       attachments.each do |file|
-        next if !file.preferences['Content-ID'] || (file.preferences['Content-ID'] != cid && file.preferences['Content-ID'] != "<#{cid}>" )
+        content_id = file.preferences['Content-ID'] || file.preferences['content_id']
+        next if content_id.blank? || (content_id != cid && content_id != "<#{cid}>" )
+
         inline_attachments[file.id] = true
         break
       end
@@ -114,14 +129,91 @@ returns
     new_attachments = []
     attachments.each do |file|
       next if !inline_attachments[file.id]
+
       new_attachments.push file
     end
     new_attachments
   end
 
+=begin
+
+clone existing attachments of article to the target object
+
+  article_parent = Ticket::Article.find(123)
+  article_new = Ticket::Article.find(456)
+
+  attached_attachments = article_parent.clone_attachments(article_new.class.name, article_new.id, only_attached_attachments: true)
+
+  inline_attachments = article_parent.clone_attachments(article_new.class.name, article_new.id, only_inline_attachments: true)
+
+returns
+
+  [attachment1, attachment2, ...]
+
+=end
+
+  def clone_attachments(object_type, object_id, options = {})
+    existing_attachments = Store.list(
+      object: object_type,
+      o_id:   object_id,
+    )
+
+    is_html_content = false
+    if content_type.present? && content_type =~ %r{text/html}i
+      is_html_content = true
+    end
+
+    new_attachments = []
+    attachments.each do |new_attachment|
+      next if new_attachment.preferences['content-alternative'] == true
+
+      # only_attached_attachments mode is used by apply attached attachments to forwared article
+      if options[:only_attached_attachments] == true
+        if is_html_content == true
+
+          content_id = new_attachment.preferences['Content-ID'] || new_attachment.preferences['content_id']
+          next if content_id.present? && body.present? && body.match?(/#{Regexp.quote(content_id)}/i)
+        end
+      end
+
+      # only_inline_attachments mode is used when quoting HTML mail with #{article.body_as_html}
+      if options[:only_inline_attachments] == true
+        next if is_html_content == false
+        next if body.blank?
+
+        content_disposition = new_attachment.preferences['Content-Disposition'] || new_attachment.preferences['content_disposition']
+        next if content_disposition.present? && content_disposition !~ /inline/
+
+        content_id = new_attachment.preferences['Content-ID'] || new_attachment.preferences['content_id']
+        next if content_id.blank?
+        next if !body.match?(/#{Regexp.quote(content_id)}/i)
+      end
+
+      already_added = false
+      existing_attachments.each do |existing_attachment|
+        next if existing_attachment.filename != new_attachment.filename || existing_attachment.size != new_attachment.size
+
+        already_added = true
+        break
+      end
+      next if already_added == true
+
+      file = Store.add(
+        object:      object_type,
+        o_id:        object_id,
+        data:        new_attachment.content,
+        filename:    new_attachment.filename,
+        preferences: new_attachment.preferences,
+      )
+      new_attachments.push file
+    end
+
+    new_attachments
+  end
+
   def self.last_customer_agent_article(ticket_id)
     sender = Ticket::Article::Sender.lookup(name: 'System')
-    Ticket::Article.where('ticket_id = ? AND sender_id NOT IN (?)', ticket_id, sender.id).order('created_at DESC').first
+    Ticket::Article.where('ticket_id = ? AND sender_id NOT IN (?)', ticket_id, sender.id).order(created_at: :desc).first
   end
 
 =begin
@@ -136,6 +228,7 @@ get body as html
   def body_as_html
     return '' if !body
     return body if content_type && content_type =~ %r{text/html}i
+
     body.text2html
   end
 
@@ -151,6 +244,7 @@ get body as text
   def body_as_text
     return '' if !body
     return body if content_type.blank? || content_type =~ %r{text/plain}i
+
     body.html2text
   end
 
@@ -183,9 +277,10 @@ returns:
   def as_raw
     list = Store.list(
       object: 'Ticket::Article::Mail',
-      o_id: id,
+      o_id:   id,
     )
     return if list.blank?
+
     list[0]
   end
 
@@ -204,11 +299,11 @@ returns:
 
   def save_as_raw(msg)
     Store.add(
-      object: 'Ticket::Article::Mail',
-      o_id: id,
-      data: msg,
-      filename: "ticket-#{ticket.number}-#{id}.eml",
-      preferences: {},
+      object:        'Ticket::Article::Mail',
+      o_id:          id,
+      data:          msg,
+      filename:      "ticket-#{ticket.number}-#{id}.eml",
+      preferences:   {},
       created_by_id: created_by_id,
     )
   end
@@ -216,6 +311,7 @@ returns:
   def sanitizeable?(attribute, _value)
     return true if attribute != :body
     return false if content_type.blank?
+
     content_type =~ /html/i
   end
 
@@ -234,16 +330,7 @@ returns
 
   def attributes_with_association_names
     attributes = super
-    attributes['attachments'] = []
-    attachments.each do |attachment|
-      item = {
-        id: attachment['id'],
-        filename: attachment['filename'],
-        size: attachment['size'],
-        preferences: attachment['preferences'],
-      }
-      attributes['attachments'].push item
-    end
+    add_attachments_to_attributes(attributes)
     Ticket::Article.insert_urls(attributes)
   end
 
@@ -262,16 +349,7 @@ returns
 
   def attributes_with_association_ids
     attributes = super
-    attributes['attachments'] = []
-    attachments.each do |attachment|
-      item = {
-        id: attachment['id'],
-        filename: attachment['filename'],
-        size: attachment['size'],
-        preferences: attachment['preferences'],
-      }
-      attributes['attachments'].push item
-    end
+    add_attachments_to_attributes(attributes)
     if attributes['body'] && attributes['content_type'] =~ %r{text/html}i
       attributes['body'] = HtmlSanitizer.dynamic_image_size(attributes['body'])
     end
@@ -280,9 +358,15 @@ returns
 
   private
 
+  def add_attachments_to_attributes(attributes)
+    attributes['attachments'] = attachments.map(&:attributes_for_display)
+    attributes
+  end
+
   # strip not wanted chars
   def check_subject
     return true if subject.blank?
+
     subject.gsub!(/\s|\t|\r/, ' ')
     true
   end
@@ -290,6 +374,7 @@ returns
   # strip body length or raise exception
   def check_body
     return true if body.blank?
+
     limit = 1_500_000
     current_length = body.length
     return true if body.length <= limit

@@ -7,14 +7,37 @@ class App.TicketCreate extends App.Controller
     'submit form':           'submit'
     'click .js-cancel':      'cancel'
 
+  types: {
+    'phone-in': {
+      icon: 'received-calls',
+      label: 'Received Call'
+    },
+    'phone-out': {
+      icon: 'outbound-calls',
+      label: 'Outbound Call'
+    },
+    'email-out': {
+      icon: 'email',
+      label: 'Send Email'
+    }
+  }
+
   constructor: (params) ->
     super
     @sidebarState = {}
 
-    # define default type
-    @default_type = 'phone-in'
+    # define default type and available types
+    @defaultType = @Config.get('ui_ticket_create_default_type')
+    @availableTypes = @Config.get('ui_ticket_create_available_types') || []
+    if !_.isArray(@availableTypes)
+      @availableTypes = [@availableTypes]
+
+    if !_.contains(@availableTypes, @defaultType)
+      @defaultType = @availableTypes[0]
 
     @formId = App.ControllerForm.formId()
+
+    @queueKey = "TicketCreate#{@taskKey}"
 
     # remember split info if exists
     @split = ''
@@ -30,7 +53,8 @@ class App.TicketCreate extends App.Controller
     # rerender view, e. g. on langauge change
     @bind('ui:rerender', =>
       return if !@authenticateCheck()
-      @render()
+      @renderQueue()
+      @tokanice()
     )
 
     # listen to rerender sidebars
@@ -47,12 +71,13 @@ class App.TicketCreate extends App.Controller
     if !type
       type = @$('.type-tabs .tab.active').data('type')
     if !type
-      type = @default_type
+      type = @defaultType
     type
 
   changeFormType: (e) =>
     type = $(e.currentTarget).data('type')
     @setFormTypeInUi(type)
+    @tokanice()
 
   setFormTypeInUi: (type) =>
 
@@ -126,13 +151,13 @@ class App.TicketCreate extends App.Controller
     "#ticket/create/id/#{@id}"
 
   show: =>
-    @navupdate "#ticket/create/id/#{@id}#{@split}", type: 'menu'
+    @navupdate("#ticket/create/id/#{@id}#{@split}", type: 'menu')
     @autosaveStart()
-    @bind('ticket_create_rerender', (template) => @render(template))
+    @bind('ticket_create_rerender', (template) => @renderQueue(template))
 
   hide: =>
     @autosaveStop()
-    @unbind('ticket_create_rerender', (template) => @render(template))
+    @unbind('ticket_create_rerender', (template) => @renderQueue(template))
 
   changed: =>
     formCurrent = @formParam( @$('.ticket-create') )
@@ -174,9 +199,9 @@ class App.TicketCreate extends App.Controller
 
     if _.isEmpty(params.ticket_id) && _.isEmpty(params.article_id)
       if !_.isEmpty(params.customer_id)
-        @render(options: { customer_id: params.customer_id })
+        @renderQueue(options: { customer_id: params.customer_id })
         return
-      @render()
+      @renderQueue()
       return
 
     # fetch split ticket data
@@ -213,25 +238,36 @@ class App.TicketCreate extends App.Controller
         t.attachments = data.attachments
 
         # render page
-        @render(options: t)
+        @renderQueue(options: t)
     )
 
-  render: (template = {}) ->
+  renderQueue: (template = {}) =>
+    localeRender = =>
+      @render(template)
+    App.QueueManager.add(@queueKey, localeRender)
+    return if !@formMeta
+    App.QueueManager.run(@queueKey)
 
+  render: (template = {}) ->
+    return if !@formMeta
     # get params
     params = @prefilledParams || {}
     if template && !_.isEmpty(template.options)
       params = template.options
     else if App.TaskManager.get(@taskKey) && !_.isEmpty(App.TaskManager.get(@taskKey).state)
       params = App.TaskManager.get(@taskKey).state
+      params.attachments = App.TaskManager.get(@taskKey).attachments
+
       if !_.isEmpty(params['form_id'])
         @formId = params['form_id']
 
     @html(App.view('agent_ticket_create')(
-      head:    'New Ticket'
-      agent:   @permissionCheck('ticket.agent')
-      admin:   @permissionCheck('admin')
-      form_id: @formId
+      head:           'New Ticket'
+      agent:          @permissionCheck('ticket.agent')
+      admin:          @permissionCheck('admin')
+      types:          @types,
+      availableTypes: @availableTypes
+      form_id:        @formId
     ))
 
     App.Ticket.configure_attributes.push {
@@ -274,6 +310,9 @@ class App.TicketCreate extends App.Controller
       form_id: @formId
       model:   App.TicketArticle
       screen:  'create_top'
+      events:
+        'fileUploadStart .richtext': => @submitDisable()
+        'fileUploadStop .richtext': => @submitEnable()
       params:  params
       taskKey: @taskKey
     )
@@ -285,11 +324,12 @@ class App.TicketCreate extends App.Controller
       events:
         'change [name=customer_id]': @localUserInfo
       handlersConfig: handlers
-      filter:         @formMeta.filter
-      formMeta:       @formMeta
-      params:         params
-      noFieldset:     true
-      taskKey:        @taskKey
+      filter:                  @formMeta.filter
+      formMeta:                @formMeta
+      params:                  params
+      noFieldset:              true
+      taskKey:                 @taskKey
+      rejectNonExistentValues: true
     )
     new App.ControllerForm(
       el:             @$('.ticket-form-bottom')
@@ -337,6 +377,11 @@ class App.TicketCreate extends App.Controller
 
     # update taskbar with new meta data
     App.TaskManager.touch(@taskKey)
+
+    @tokanice()
+
+  tokanice: ->
+    App.Utils.tokanice('.content.active input[name=cc]', 'email')
 
   localUserInfo: (e) =>
     return if !@sidebarWidget
@@ -464,8 +509,12 @@ class App.TicketCreate extends App.Controller
           if !confirm(App.i18n.translateContent('You use %s in text but no attachment is attached. Do you want to continue?', matchingWord))
             return
 
+    # add sidebar params
+    if @sidebarWidget && @sidebarWidget.postParams
+      @sidebarWidget.postParams(ticket: ticket)
+
     # disable form
-    @formDisable(e)
+    @submitDisable(e)
     ui = @
     ticket.save(
       done: ->
@@ -497,13 +546,25 @@ class App.TicketCreate extends App.Controller
 
       fail: (settings, details) ->
         ui.log 'errors', details
-        ui.formEnable(e)
+        ui.submitEnable(e)
         ui.notify(
           type:    'error'
           msg:     App.i18n.translateContent(details.error_human || details.error || 'Unable to create object!')
           timeout: 6000
         )
     )
+
+  submitDisable: (e) =>
+    if e
+      @formDisable(e)
+      return
+    @formDisable(@$('.js-submit'), 'button')
+
+  submitEnable: (e) =>
+    if e
+      @formEnable(e)
+      return
+    @formEnable(@$('.js-submit'), 'button')
 
 class Router extends App.ControllerPermanent
   requiredPermission: 'ticket.agent'

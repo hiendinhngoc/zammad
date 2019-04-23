@@ -35,6 +35,7 @@ send also reload type to clients
 
   def self.set(reload_required = false, type = 'app_version')
     return false if !Setting.find_by(name: 'app_version')
+
     version = "#{Time.zone.now.strftime('%Y%m%d%H%M%S')}:#{reload_required}"
     Setting.set('app_version', version)
 
@@ -70,8 +71,8 @@ returns
   def self.event_data(type = 'app_version')
     {
       event: 'maintenance',
-      data: {
-        type: type,
+      data:  {
+        type:        type,
         app_version: get,
       }
     }

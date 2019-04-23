@@ -3,22 +3,20 @@ module ApplicationController::Authenticates
 
   private
 
-  def response_access_deny
-    raise Exceptions::NotAuthorized
-  end
-
   def permission_check(key)
     if @_token_auth
       user = Token.check(
-        action: 'api',
-        name: @_token_auth,
+        action:     'api',
+        name:       @_token_auth,
         permission: key,
       )
       return false if user
+
       raise Exceptions::NotAuthorized, 'Not authorized (token)!'
     end
 
     return false if current_user&.permissions?(key)
+
     raise Exceptions::NotAuthorized, 'Not authorized (user)!'
   end
 
@@ -47,7 +45,7 @@ module ApplicationController::Authenticates
 
     # already logged in, early exit
     if session.id && session[:user_id]
-      logger.debug 'session based auth check'
+      logger.debug { 'session based auth check' }
       user = User.lookup(id: session[:user_id])
       return authentication_check_prerequesits(user, 'session', auth_param) if user
     end
@@ -64,31 +62,33 @@ module ApplicationController::Authenticates
     # check http basic based authentication
     authenticate_with_http_basic do |username, password|
       request.session_options[:skip] = true # do not send a session cookie
-      logger.debug "http basic auth check '#{username}'"
+      logger.debug { "http basic auth check '#{username}'" }
       if Setting.get('api_password_access') == false
         raise Exceptions::NotAuthorized, 'API password access disabled!'
       end
+
       user = User.authenticate(username, password)
       return authentication_check_prerequesits(user, 'basic_auth', auth_param) if user
     end
 
     # check http token based authentication
     authenticate_with_http_token do |token_string, _options|
-      logger.debug "http token auth check '#{token_string}'"
+      logger.debug { "http token auth check '#{token_string}'" }
       request.session_options[:skip] = true # do not send a session cookie
       if Setting.get('api_token_access') == false
         raise Exceptions::NotAuthorized, 'API token access disabled!'
       end
+
       user = Token.check(
-        action: 'api',
-        name: token_string,
+        action:        'api',
+        name:          token_string,
         inactive_user: true,
       )
       if user && auth_param[:permission]
         user = Token.check(
-          action: 'api',
-          name: token_string,
-          permission: auth_param[:permission],
+          action:        'api',
+          name:          token_string,
+          permission:    auth_param[:permission],
           inactive_user: true,
         )
         raise Exceptions::NotAuthorized, 'Not authorized (token)!' if !user
@@ -114,12 +114,10 @@ module ApplicationController::Authenticates
     token = Doorkeeper::OAuth::Token.from_bearer_authorization(request)
     if token
       request.session_options[:skip] = true # do not send a session cookie
-      logger.debug "oauth2 token auth check '#{token}'"
+      logger.debug { "oauth2 token auth check '#{token}'" }
       access_token = Doorkeeper::AccessToken.by_token(token)
 
-      if !access_token
-        raise Exceptions::NotAuthorized, 'Invalid token!'
-      end
+      raise Exceptions::NotAuthorized, 'Invalid token!' if !access_token
 
       # check expire
       if access_token.expires_in && (access_token.created_at + access_token.expires_in) < Time.zone.now
@@ -142,9 +140,7 @@ module ApplicationController::Authenticates
       raise Exceptions::NotAuthorized, 'Maintenance mode enabled!'
     end
 
-    if user.active == false
-      raise Exceptions::NotAuthorized, 'User is inactive!'
-    end
+    raise Exceptions::NotAuthorized, 'User is inactive!' if !user.active
 
     # check scopes / permission check
     if auth_param[:permission] && !user.permissions?(auth_param[:permission])
@@ -153,7 +149,7 @@ module ApplicationController::Authenticates
 
     current_user_set(user, auth_type)
     user_device_log(user, auth_type)
-    logger.debug "#{auth_type} for '#{user.login}'"
+    logger.debug { "#{auth_type} for '#{user.login}'" }
     true
   end
 end

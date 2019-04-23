@@ -34,7 +34,8 @@ class Observer::Transaction < ActiveRecord::Observer
     Setting.where(area: 'Transaction::Backend::Sync').order(:name).each do |setting|
       backend = Setting.get(setting.name)
       next if params[:disable]&.include?(backend)
-      sync_backends.push Kernel.const_get(backend)
+
+      sync_backends.push backend.constantize
     end
 
     # get uniq objects
@@ -54,15 +55,13 @@ class Observer::Transaction < ActiveRecord::Observer
   end
 
   def self.execute_singel_backend(backend, item, params)
-    Rails.logger.debug "Execute singel backend #{backend}"
+    Rails.logger.debug { "Execute singel backend #{backend}" }
     begin
       UserInfo.current_user_id = nil
       integration = backend.new(item, params)
       integration.perform
     rescue => e
-      Rails.logger.error 'ERROR: ' + backend.inspect
-      Rails.logger.error 'ERROR: ' + e.inspect
-      Rails.logger.error e.backtrace.inspect
+      Rails.logger.error e
     end
   end
 
@@ -120,12 +119,12 @@ class Observer::Transaction < ActiveRecord::Observer
       # simulate article create as ticket update
       article = nil
       if event[:object] == 'Ticket::Article'
-        article = Ticket::Article.lookup(id: event[:id])
+        article = Ticket::Article.find_by(id: event[:id])
         next if !article
         next if event[:type] == 'update'
 
         # set new event infos
-        ticket = Ticket.lookup(id: article.ticket_id)
+        ticket = Ticket.find_by(id: article.ticket_id)
         event[:object] = 'Ticket'
         event[:id] = ticket.id
         event[:type] = 'update'
@@ -133,7 +132,7 @@ class Observer::Transaction < ActiveRecord::Observer
       end
 
       # get current state of objects
-      object = Kernel.const_get(event[:object]).lookup(id: event[:id])
+      object = event[:object].constantize.find_by(id: event[:id])
 
       # next if object is already deleted
       next if !object
@@ -183,11 +182,11 @@ class Observer::Transaction < ActiveRecord::Observer
     return true if Setting.get('import_mode')
 
     e = {
-      object: record.class.name,
-      type: 'create',
-      data: record,
-      id: record.id,
-      user_id: record.created_by_id,
+      object:     record.class.name,
+      type:       'create',
+      data:       record,
+      id:         record.id,
+      user_id:    record.created_by_id,
       created_at: Time.zone.now,
     }
     EventBuffer.add('transaction', e)
@@ -211,6 +210,7 @@ class Observer::Transaction < ActiveRecord::Observer
       next if key == 'article_count'
       next if key == 'create_article_type_id'
       next if key == 'create_article_sender_id'
+
       real_changes[key] = value
     end
 
@@ -225,12 +225,12 @@ class Observer::Transaction < ActiveRecord::Observer
                     end
 
     e = {
-      object: record.class.name,
-      type: 'update',
-      data: record,
-      changes: real_changes,
-      id: record.id,
-      user_id: changed_by_id,
+      object:     record.class.name,
+      type:       'update',
+      data:       record,
+      changes:    real_changes,
+      id:         record.id,
+      user_id:    changed_by_id,
       created_at: Time.zone.now,
     }
     EventBuffer.add('transaction', e)

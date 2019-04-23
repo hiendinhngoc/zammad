@@ -1,7 +1,4 @@
 # Copyright (C) 2012-2015 Zammad Foundation, http://zammad-foundation.org/
-
-require 'icalendar'
-
 class CalendarSubscriptionsController < ApplicationController
   prepend_before_action { authentication_check( { basic_auth_promt: true, permission: 'user_preferences.calendar' } ) }
 
@@ -17,8 +14,8 @@ class CalendarSubscriptionsController < ApplicationController
 
     send_data(
       ical,
-      filename: 'zammad.ical',
-      type: 'text/plain',
+      filename:    'zammad.ical',
+      type:        'text/plain',
       disposition: 'inline'
     )
   rescue => e
@@ -39,8 +36,8 @@ class CalendarSubscriptionsController < ApplicationController
 
     send_data(
       ical,
-      filename: 'zammad.ical',
-      type: 'text/plain',
+      filename:    'zammad.ical',
+      type:        'text/plain',
       disposition: 'inline'
     )
   rescue => e

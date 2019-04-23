@@ -44,6 +44,7 @@ class TicketArticlesController < ApplicationController
 
         # ignore internal article if customer is requesting
         next if article.internal == true && current_user.permissions?('ticket.customer')
+
         result = article.attributes_with_association_names
         articles.push result
       end
@@ -65,7 +66,7 @@ class TicketArticlesController < ApplicationController
       end
       render json: {
         record_ids: record_ids,
-        assets: assets,
+        assets:     assets,
       }, status: :ok
       return
     end
@@ -74,6 +75,7 @@ class TicketArticlesController < ApplicationController
 
       # ignore internal article if customer is requesting
       next if article.internal == true && current_user.permissions?('ticket.customer')
+
       articles.push article.attributes_with_association_names
     end
     render json: articles, status: :ok
@@ -112,6 +114,9 @@ class TicketArticlesController < ApplicationController
     clean_params = Ticket::Article.association_name_to_id_convert(params)
     clean_params = Ticket::Article.param_cleanup(clean_params, true)
 
+    # only apply preferences changes (keep not updated keys/values)
+    clean_params = article.param_preferences_merge(clean_params)
+
     article.update!(clean_params)
 
     if response_expand?
@@ -147,66 +152,6 @@ class TicketArticlesController < ApplicationController
     end
 
     raise Exceptions::NotAuthorized, 'Not authorized (admin permission required)!'
-  end
-
-  # DELETE /ticket_attachment_upload
-  def ticket_attachment_upload_delete
-
-    if params[:id].present?
-      Store.remove_item(params[:id])
-      render json: {
-        success: true,
-      }
-      return
-    end
-
-    if params[:form_id].present?
-      Store.remove(
-        object: 'UploadCache',
-        o_id:   params[:form_id],
-      )
-      render json: {
-        success: true,
-      }
-      return
-    end
-
-    render json: { message: 'No such id or form_id!' }, status: :unprocessable_entity
-  end
-
-  # POST /ticket_attachment_upload
-  def ticket_attachment_upload_add
-
-    # store file
-    file = params[:File]
-    content_type = file.content_type
-    if !content_type || content_type == 'application/octet-stream'
-      content_type = if MIME::Types.type_for(file.original_filename).first
-                       MIME::Types.type_for(file.original_filename).first.content_type
-                     else
-                       'application/octet-stream'
-                     end
-    end
-    headers_store = {
-      'Content-Type' => content_type
-    }
-    store = Store.add(
-      object: 'UploadCache',
-      o_id: params[:form_id],
-      data: file.read,
-      filename: file.original_filename,
-      preferences: headers_store
-    )
-
-    # return result
-    render json: {
-      success: true,
-      data: {
-        id: store.id,
-        filename: file.original_filename,
-        size: store.size,
-      }
-    }
   end
 
   # POST /ticket_attachment_upload_clone_by_article
@@ -250,10 +195,23 @@ class TicketArticlesController < ApplicationController
 
     disposition = sanitized_disposition
 
+    content = nil
+    if params[:view].present? && file.preferences[:resizable] == true
+      if file.preferences[:content_inline] == true && params[:view] == 'inline'
+        content = file.content_inline
+      elsif file.preferences[:content_preview] == true && params[:view] == 'preview'
+        content = file.content_preview
+      end
+    end
+
+    if content.blank?
+      content = file.content
+    end
+
     send_data(
-      file.content,
-      filename: file.filename,
-      type: file.preferences['Content-Type'] || file.preferences['Mime-Type'] || 'application/octet-stream',
+      content,
+      filename:    file.filename,
+      type:        file.preferences['Content-Type'] || file.preferences['Mime-Type'] || 'application/octet-stream',
       disposition: disposition
     )
   end
@@ -270,8 +228,8 @@ class TicketArticlesController < ApplicationController
 
     send_data(
       file.content,
-      filename: file.filename,
-      type: 'message/rfc822',
+      filename:    file.filename,
+      type:        'message/rfc822',
       disposition: 'inline'
     )
   end
@@ -291,8 +249,8 @@ class TicketArticlesController < ApplicationController
     )
     send_data(
       csv_string,
-      filename: 'example.csv',
-      type: 'text/csv',
+      filename:    'example.csv',
+      type:        'text/csv',
       disposition: 'attachment'
     )
 
@@ -312,12 +270,19 @@ class TicketArticlesController < ApplicationController
     if Setting.get('import_mode') != true
       raise 'Only can import tickets if system is in import mode.'
     end
+
+    string = params[:data]
+    if string.blank? && params[:file].present?
+      string = params[:file].read.force_encoding('utf-8')
+    end
+    raise Exceptions::UnprocessableEntity, 'No source data submitted!' if string.blank?
+
     result = Ticket::Article.csv_import(
-      string: params[:file].read.force_encoding('utf-8'),
+      string:       string,
       parse_params: {
         col_sep: ';',
       },
-      try: params[:try],
+      try:          params[:try],
     )
     render json: result, status: :ok
   end
@@ -328,6 +293,7 @@ class TicketArticlesController < ApplicationController
     disposition = params.fetch(:disposition, 'inline')
     valid_disposition = %w[inline attachment]
     return disposition if valid_disposition.include?(disposition)
+
     raise Exceptions::NotAuthorized, "Invalid disposition #{disposition} requested. Only #{valid_disposition.join(', ')} are valid."
   end
 end

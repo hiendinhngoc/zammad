@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class SwitchToUserTest < TestCase
@@ -20,7 +19,8 @@ class SwitchToUserTest < TestCase
     )
     sleep 3
 
-    @browser.mouse.move_to(@browser.find_elements({ css: '.content.active .table-overview tbody tr:first-child' } )[0])
+    @browser.action.move_to(@browser.find_elements({ css: '.content.active .table-overview tbody tr:first-child' } )[0]).release.perform
+
     sleep 0.5
     click(
       css: '.content.active .icon-switchView',
@@ -28,11 +28,11 @@ class SwitchToUserTest < TestCase
     sleep 3
 
     watch_for(
-      css: '.switchBackToUser',
+      css:   '.switchBackToUser',
       value: 'zammad looks like',
     )
     watch_for(
-      css: '.switchBackToUser',
+      css:   '.switchBackToUser',
       value: 'Nicole',
     )
     login = @browser.find_elements({ css: '.user-menu .user a' })[0].attribute('title')

@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class OrganizationCsvImportTest < ActiveSupport::TestCase
@@ -18,15 +17,57 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
     assert(header.include?('members'))
   end
 
+  test 'empty payload' do
+    csv_string = ''
+    result = Organization.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert_nil(result[:records])
+    assert_equal('failed', result[:result])
+    assert_equal('Unable to parse empty file/string for Organization.', result[:errors][0])
+
+    csv_string = 'id;name;shared;domain;domain_assignment;active;'
+    result = Organization.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert(result[:records].blank?)
+    assert_equal('failed', result[:result])
+    assert_equal('No records found in file/string for Organization.', result[:errors][0])
+  end
+
+  test 'verify required lookup headers' do
+    csv_string = "firstname;lastname;active;\nfirstname-simple-import1;lastname-simple-import1;;true\nfirstname-simple-import2;lastname-simple-import2;false\n"
+    result = Organization.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+    )
+    assert_equal(true, result[:try])
+    assert_equal('failed', result[:result])
+    assert_equal('No lookup column like id,name for Organization found.', result[:errors][0])
+  end
+
   test 'simple import' do
 
     csv_string = "id;name;shared;domain;domain_assignment;active;note\n;org-simple-import1;true;org-simple-import1.example.com;false;true;some note1\n;org-simple-import2;true;org-simple-import2.example.com;false;false;some note2\n"
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(2, result[:records].count)
@@ -36,11 +77,11 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
     assert_nil(Organization.find_by(name: 'org-simple-import2'))
 
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(2, result[:records].count)
@@ -71,11 +112,11 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
 
     csv_string = "id;name;shared;domain;domain_assignment;active;note;\n999999999;organization-simple-invalid_id-import1;\n;organization-simple-invalid_id-import2;\n"
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(1, result[:errors].count)
@@ -86,11 +127,11 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
     assert_nil(Organization.find_by(name: 'organization-simple-invalid_id-import2'))
 
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(1, result[:records].count)
@@ -111,29 +152,29 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
 
     name = rand(999_999_999)
     customer1 = User.create_or_update(
-      login: "customer1-members#{name}@example.com",
+      login:     "customer1-members#{name}@example.com",
       firstname: 'Member',
-      lastname: "Customer#{name}",
-      email: "customer1-members#{name}@example.com",
-      password: 'customerpw',
-      active: true,
+      lastname:  "Customer#{name}",
+      email:     "customer1-members#{name}@example.com",
+      password:  'customerpw',
+      active:    true,
     )
     customer2 = User.create_or_update(
-      login: "customer2-members#{name}@example.com",
+      login:     "customer2-members#{name}@example.com",
       firstname: 'Member',
-      lastname: "Customer#{name}",
-      email: "customer2-members#{name}@example.com",
-      password: 'customerpw',
-      active: true,
+      lastname:  "Customer#{name}",
+      email:     "customer2-members#{name}@example.com",
+      password:  'customerpw',
+      active:    true,
     )
 
     csv_string = "id;name;members;\n;organization-member-import1;\n;organization-member-import2;#{customer1.email}\n;;#{customer2.email}"
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
 
     assert_equal(true, result[:try])
@@ -144,11 +185,11 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
     assert_nil(Organization.find_by(name: 'organization-member-import2'))
 
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
 
     assert_equal(false, result[:try])
@@ -174,36 +215,52 @@ class OrganizationCsvImportTest < ActiveSupport::TestCase
 
     csv_string = "name;note;not existing\norganization-invalid-import1;some note;abc\norganization-invalid-import2;some other note;123; with not exsiting header\n"
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: true,
+      try:          true,
     )
     assert_equal(true, result[:try])
     assert_equal(2, result[:errors].count)
     assert_equal('failed', result[:result])
-    assert_equal("Line 1: unknown attribute 'not existing' for Organization.", result[:errors][0])
-    assert_equal("Line 2: unknown attribute 'not existing' for Organization.", result[:errors][1])
+    assert_equal("Line 1: Unable to create record - unknown attribute 'not existing' for Organization.", result[:errors][0])
+    assert_equal("Line 2: Unable to create record - unknown attribute 'not existing' for Organization.", result[:errors][1])
 
     assert_nil(Organization.find_by(name: 'organization-invalid-import1'))
     assert_nil(Organization.find_by(name: 'organization-invalid-import2'))
 
     result = Organization.csv_import(
-      string: csv_string,
+      string:       csv_string,
       parse_params: {
         col_sep: ';',
       },
-      try: false,
+      try:          false,
     )
     assert_equal(false, result[:try])
     assert_equal(2, result[:errors].count)
     assert_equal('failed', result[:result])
-    assert_equal("Line 1: unknown attribute 'not existing' for Organization.", result[:errors][0])
-    assert_equal("Line 2: unknown attribute 'not existing' for Organization.", result[:errors][1])
+    assert_equal("Line 1: Unable to create record - unknown attribute 'not existing' for Organization.", result[:errors][0])
+    assert_equal("Line 2: Unable to create record - unknown attribute 'not existing' for Organization.", result[:errors][1])
 
     assert_nil(Organization.find_by(name: 'organization-invalid-import1'))
     assert_nil(Organization.find_by(name: 'organization-invalid-import2'))
+  end
+
+  test 'simple import with delete' do
+    csv_string = "id;name;shared;domain;domain_assignment;active;note\n;org-simple-import1;true;org-simple-import1.example.com;false;true;some note1\n;org-simple-import2;true;org-simple-import2.example.com;false;false;some note2\n"
+    result = Organization.csv_import(
+      string:       csv_string,
+      parse_params: {
+        col_sep: ';',
+      },
+      try:          true,
+      delete:       true,
+    )
+
+    assert_equal(true, result[:try])
+    assert_equal('failed', result[:result])
+    assert_equal('Delete is not possible for Organization.', result[:errors][0])
   end
 
 end

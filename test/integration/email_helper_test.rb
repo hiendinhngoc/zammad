@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class EmailHelperTest < ActiveSupport::TestCase
@@ -143,10 +142,10 @@ class EmailHelperTest < ActiveSupport::TestCase
     result = EmailHelper::Probe.inbound(
       adapter: 'imap2',
       options: {
-        host: 'not_existsing_host',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     'not_existsing_host',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
@@ -157,10 +156,10 @@ class EmailHelperTest < ActiveSupport::TestCase
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'not_existsing_host',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     'not_existsing_host',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
@@ -169,27 +168,28 @@ class EmailHelperTest < ActiveSupport::TestCase
     assert_equal('Hostname not found!', result[:message_human])
     assert_equal('not_existsing_host', result[:settings][:options][:host])
 
+    # try to access imap on host with blocked port to force a "Connection refused!" error
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'www.znuny.com',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     'no-imap-host.test.zammad.org',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
     assert_equal('invalid', result[:result])
     assert_equal('Connection refused!', result[:message_human])
-    assert_equal('www.znuny.com', result[:settings][:options][:host])
+    assert_equal('no-imap-host.test.zammad.org', result[:settings][:options][:host])
 
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: '172.42.42.42',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     '172.42.42.42',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
@@ -201,10 +201,10 @@ class EmailHelperTest < ActiveSupport::TestCase
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'imap.gmail.com',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     'imap.gmail.com',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
@@ -215,10 +215,10 @@ class EmailHelperTest < ActiveSupport::TestCase
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'imap.gmail.com',
-        port: 993,
-        ssl: true,
-        user: 'frank.tailor05@googlemail.com',
+        host:     'imap.gmail.com',
+        port:     993,
+        ssl:      true,
+        user:     'frank.tailor05@googlemail.com',
         password: 'password',
       }
     )
@@ -236,10 +236,10 @@ class EmailHelperTest < ActiveSupport::TestCase
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'arber.znuny.com',
-        port: 993,
-        ssl: true,
-        user: 'some@example.com',
+        host:     'arber.znuny.com',
+        port:     993,
+        ssl:      true,
+        user:     'some@example.com',
         password: 'password',
       }
     )
@@ -251,16 +251,17 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_1']
       raise "Need EMAILHELPER_MAILBOX_1 as ENV variable like export EMAILHELPER_MAILBOX_1='unittestemailhelper01@znuny.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_1'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_1'].split(':')[1]
     user, domain = EmailHelper.parse_email(mailbox_user)
     result = EmailHelper::Probe.inbound(
       adapter: 'imap',
       options: {
-        host: 'arber.znuny.com',
-        port: 993,
-        ssl: true,
-        user: user,
+        host:     'arber.znuny.com',
+        port:     993,
+        ssl:      true,
+        user:     user,
         password: mailbox_password,
       }
     )
@@ -275,11 +276,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp2',
         options: {
-          host: 'not_existsing_host',
-          port: 25,
+          host:      'not_existsing_host',
+          port:      25,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         },
       },
       'some@example.com',
@@ -292,11 +293,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp',
         options: {
-          host: 'not_existsing_host',
-          port: 25,
+          host:      'not_existsing_host',
+          port:      25,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         }
       },
       'some@example.com',
@@ -306,32 +307,33 @@ class EmailHelperTest < ActiveSupport::TestCase
     assert_equal('Hostname not found!', result[:message_human])
     assert_equal('not_existsing_host', result[:settings][:options][:host])
 
+    # try to access SMTP on host with blocked port to force a "Connection refused!" error
     result = EmailHelper::Probe.outbound(
       {
         adapter: 'smtp',
         options: {
-          host: 'www.znuny.com',
-          port: 26,
+          host:      'no-imap-host.test.zammad.org',
+          port:      26,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         }
       },
       'some@example.com',
     )
     assert_equal('invalid', result[:result])
     assert_equal('Connection refused!', result[:message_human])
-    assert_equal('www.znuny.com', result[:settings][:options][:host])
+    assert_equal('no-imap-host.test.zammad.org', result[:settings][:options][:host])
 
     result = EmailHelper::Probe.outbound(
       {
         adapter: 'smtp',
         options: {
-          host: '172.42.42.42',
-          port: 25,
+          host:      '172.42.42.42',
+          port:      25,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         }
       },
       'some@example.com',
@@ -345,11 +347,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp',
         options: {
-          host: 'smtp.gmail.com',
-          port: 25,
+          host:      'smtp.gmail.com',
+          port:      25,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         }
       },
       'some@example.com',
@@ -362,11 +364,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp',
         options: {
-          host: 'smtp.gmail.com',
-          port: 25,
+          host:      'smtp.gmail.com',
+          port:      25,
           start_tls: true,
-          user: 'frank.tailor05@googlemail.com',
-          password: 'password',
+          user:      'frank.tailor05@googlemail.com',
+          password:  'password',
         }
       },
       'some@example.com',
@@ -386,11 +388,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp',
         options: {
-          host: 'arber.znuny.com',
-          port: 25,
+          host:      'arber.znuny.com',
+          port:      25,
           start_tls: true,
-          user: 'some@example.com',
-          password: 'password',
+          user:      'some@example.com',
+          password:  'password',
         }
       },
       'some@example.com',
@@ -403,6 +405,7 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_1']
       raise "Need EMAILHELPER_MAILBOX_1 as ENV variable like export EMAILHELPER_MAILBOX_1='unittestemailhelper01@znuny.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_1'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_1'].split(':')[1]
     user, domain = EmailHelper.parse_email(mailbox_user)
@@ -410,11 +413,11 @@ class EmailHelperTest < ActiveSupport::TestCase
       {
         adapter: 'smtp',
         options: {
-          host: 'arber.znuny.com',
-          port: 25,
+          host:      'arber.znuny.com',
+          port:      25,
           start_tls: true,
-          user: user,
-          password: mailbox_password,
+          user:      user,
+          password:  mailbox_password,
         }
       },
       mailbox_user,
@@ -425,7 +428,7 @@ class EmailHelperTest < ActiveSupport::TestCase
   test 'zz probe' do
 
     result = EmailHelper::Probe.full(
-      email: 'invalid_format',
+      email:    'invalid_format',
       password: 'somepass',
     )
     assert_equal('invalid', result[:result])
@@ -435,11 +438,12 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_1']
       raise "Need EMAILHELPER_MAILBOX_1 as ENV variable like export EMAILHELPER_MAILBOX_1='unittestemailhelper01@znuny.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_1'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_1'].split(':')[1]
 
     result = EmailHelper::Probe.full(
-      email: mailbox_user,
+      email:    mailbox_user,
       password: mailbox_password,
     )
     assert_equal('ok', result[:result])
@@ -450,11 +454,12 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_2']
       raise "Need EMAILHELPER_MAILBOX_2 as ENV variable like export EMAILHELPER_MAILBOX_2='hansb36621@gmail.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_2'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_2'].split(':')[1]
 
     result = EmailHelper::Probe.full(
-      email: mailbox_user,
+      email:    mailbox_user,
       password: mailbox_password,
     )
     assert_nil(result[:reason])
@@ -470,31 +475,32 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_1']
       raise "Need EMAILHELPER_MAILBOX_1 as ENV variable like export EMAILHELPER_MAILBOX_1='unittestemailhelper01@znuny.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_1'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_1'].split(':')[1]
     user, domain = EmailHelper.parse_email(mailbox_user)
     result = EmailHelper::Verify.email(
-      inbound: {
+      inbound:  {
         adapter: 'imap',
         options: {
-          host: 'arber.znuny.com',
-          port: 993,
-          ssl: true,
-          user: user,
+          host:     'arber.znuny.com',
+          port:     993,
+          ssl:      true,
+          user:     user,
           password: mailbox_password,
         },
       },
       outbound: {
         adapter: 'smtp',
         options: {
-          host: 'arber.znuny.com',
-          port: 25,
+          host:      'arber.znuny.com',
+          port:      25,
           start_tls: true,
-          user: user,
-          password: mailbox_password,
+          user:      user,
+          password:  mailbox_password,
         },
       },
-      sender: mailbox_user,
+      sender:   mailbox_user,
     )
     assert_equal('ok', result[:result])
 
@@ -502,31 +508,32 @@ class EmailHelperTest < ActiveSupport::TestCase
     if !ENV['EMAILHELPER_MAILBOX_2']
       raise "Need EMAILHELPER_MAILBOX_2 as ENV variable like export EMAILHELPER_MAILBOX_2='hansb36621@gmail.com:somepass'"
     end
+
     mailbox_user     = ENV['EMAILHELPER_MAILBOX_2'].split(':')[0]
     mailbox_password = ENV['EMAILHELPER_MAILBOX_2'].split(':')[1]
     user, domain = EmailHelper.parse_email(mailbox_user)
     result = EmailHelper::Verify.email(
-      inbound: {
+      inbound:  {
         adapter: 'pop3',
         options: {
-          host: 'pop.gmail.com',
-          port: 995,
-          ssl: true,
-          user: mailbox_user,
+          host:     'pop.gmail.com',
+          port:     995,
+          ssl:      true,
+          user:     mailbox_user,
           password: mailbox_password,
         },
       },
       outbound: {
         adapter: 'smtp',
         options: {
-          host: 'smtp.gmail.com',
-          port: 25,
+          host:      'smtp.gmail.com',
+          port:      25,
           start_tls: true,
-          user: mailbox_user,
-          password: mailbox_password,
+          user:      mailbox_user,
+          password:  mailbox_password,
         },
       },
-      sender: mailbox_user,
+      sender:   mailbox_user,
     )
     assert_equal('ok', result[:result])
 

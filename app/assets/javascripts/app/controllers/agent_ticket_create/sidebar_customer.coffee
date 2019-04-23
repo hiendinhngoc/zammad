@@ -7,14 +7,17 @@ class SidebarCustomer extends App.Controller
       badgeCallback: @badgeRender
       sidebarHead: 'Customer'
       sidebarCallback: @showCustomer
-      sidebarActions: [
-        {
+      sidebarActions: []
+    }
+    if App.User.exists(@params.customer_id)
+      customer = App.User.find(@params.customer_id)
+      if customer.isAccessibleBy(App.User.current(), 'change')
+        @item.sidebarActions.push {
           title:    'Edit Customer'
           name:     'customer-edit'
           callback: @editCustomer
-        },
-      ]
-    }
+        }
+    @item
 
   metaBadge: (user) =>
     counter = ''

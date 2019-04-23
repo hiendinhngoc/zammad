@@ -2,6 +2,7 @@
 
 class User
   module Assets
+    extend ActiveSupport::Concern
 
 =begin
 
@@ -47,7 +48,7 @@ returns
           authorizations = self.authorizations()
           authorizations.each do |authorization|
             local_accounts[authorization.provider] = {
-              uid: authorization[:uid],
+              uid:      authorization[:uid],
               username: authorization[:username]
             }
           end
@@ -58,23 +59,30 @@ returns
         # get roles
         local_attributes['role_ids']&.each do |role_id|
           next if data[:Role] && data[:Role][role_id]
+
           role = Role.lookup(id: role_id)
+          next if !role
+
           data = role.assets(data)
         end
 
         # get groups
         local_attributes['group_ids']&.each do |group_id, _access|
           next if data[:Group] && data[:Group][group_id]
+
           group = Group.lookup(id: group_id)
           next if !group
+
           data = group.assets(data)
         end
 
         # get organizations
         local_attributes['organization_ids']&.each do |organization_id|
           next if data[:Organization] && data[:Organization][organization_id]
+
           organization = Organization.lookup(id: organization_id)
           next if !organization
+
           data = organization.assets(data)
         end
 
@@ -93,8 +101,10 @@ returns
       %w[created_by_id updated_by_id].each do |local_user_id|
         next if !self[ local_user_id ]
         next if data[ app_model ][ self[ local_user_id ] ]
+
         user = User.lookup(id: self[ local_user_id ])
         next if !user
+
         data = user.assets(data)
       end
       data

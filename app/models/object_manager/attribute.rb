@@ -2,13 +2,38 @@ class ObjectManager::Attribute < ApplicationModel
   include ChecksClientNotification
   include CanSeed
 
+  DATA_TYPES = %w[
+    input
+    user_autocompletion
+    checkbox
+    select
+    tree_select
+    datetime
+    date
+    tag
+    richtext
+    textarea
+    integer
+    autocompletion_ajax
+    boolean
+    user_permission
+    active
+  ].freeze
+
   self.table_name = 'object_manager_attributes'
 
-  belongs_to :object_lookup,   class_name: 'ObjectLookup'
-  validates  :name, presence: true
-  store      :screens
-  store      :data_option
-  store      :data_option_new
+  belongs_to :object_lookup
+
+  validates :name, presence: true
+  validates :data_type, inclusion: { in: DATA_TYPES, msg: '%{value} is not a valid data type' }
+  validate :data_option_must_have_appropriate_values
+  validate :data_type_must_not_change, on: :update
+
+  store :screens
+  store :data_option
+  store :data_option_new
+
+  before_validation :set_base_options
 
 =begin
 
@@ -27,12 +52,25 @@ list of all attributes
 
   def self.list_full
     result = ObjectManager::Attribute.all.order('position ASC, name ASC')
+    references = ObjectManager::Attribute.attribute_to_references_hash
     attributes = []
     assets = {}
     result.each do |item|
       attribute = item.attributes
       attribute[:object] = ObjectLookup.by_id(item.object_lookup_id)
       attribute.delete('object_lookup_id')
+
+      # an attribute is deletable if it is both editable and not referenced by other Objects (Triggers, Overviews, Schedulers)
+      deletable = true
+      not_deletable_reason = ''
+      if ObjectManager::Attribute.attribute_used_by_references?(attribute[:object], attribute['name'], references)
+        deletable = false
+        not_deletable_reason = ObjectManager::Attribute.attribute_used_by_references_humaniced(attribute[:object], attribute['name'], references)
+      end
+      attribute[:deletable] = attribute['editable'] && deletable == true
+      if not_deletable_reason.present?
+        attribute[:not_deletable_reason] = "This attribute is referenced by #{not_deletable_reason} and thus cannot be deleted!"
+      end
       attributes.push attribute
     end
     attributes
@@ -264,7 +302,7 @@ possible types
     # check new entry - is needed
     record = ObjectManager::Attribute.find_by(
       object_lookup_id: data[:object_lookup_id],
-      name: data[:name],
+      name:             data[:name],
     )
     if record
 
@@ -281,6 +319,7 @@ possible types
       if !force
         %i[name display data_type position active].each do |key|
           next if record[key] == data[key]
+
           record[:data_option_new] = data[:data_option] if data[:data_option] # bring the data options over as well, when there are changes to the fields above
           data[:to_config] = true
           break
@@ -309,7 +348,6 @@ possible types
         record.check_editable
         record.check_name
       end
-      record.check_datatype
       record.save!
       return record
     end
@@ -329,7 +367,6 @@ possible types
       record.check_editable
       record.check_name
     end
-    record.check_datatype
     record.save!
     record
   end
@@ -352,6 +389,10 @@ use "force: true" to delete also not editable fields
     # lookups
     if data[:object]
       data[:object_lookup_id] = ObjectLookup.by_name(data[:object])
+    elsif data[:object_lookup_id]
+      data[:object] = ObjectLookup.by_id(data[:object_lookup_id])
+    else
+      raise 'ERROR: need object or object_lookup_id param!'
     end
 
     data[:name].downcase!
@@ -359,7 +400,7 @@ use "force: true" to delete also not editable fields
     # check newest entry - is needed
     record = ObjectManager::Attribute.find_by(
       object_lookup_id: data[:object_lookup_id],
-      name: data[:name],
+      name:             data[:name],
     )
     if !record
       raise "ERROR: No such field #{data[:object]}.#{data[:name]}"
@@ -367,6 +408,12 @@ use "force: true" to delete also not editable fields
 
     if !data[:force] && !record.editable
       raise "ERROR: #{data[:object]}.#{data[:name]} can't be removed!"
+    end
+
+    # check to make sure that no triggers, overviews, or schedulers references this attribute
+    if ObjectManager::Attribute.attribute_used_by_references?(data[:object], data[:name])
+      text = ObjectManager::Attribute.attribute_used_by_references_humaniced(data[:object], data[:name])
+      raise "ERROR: #{data[:object]}.#{data[:name]} is referenced by #{text} and thus cannot be deleted!"
     end
 
     # if record is to create, just destroy it
@@ -401,7 +448,7 @@ get the attribute model based on object and name
 
     ObjectManager::Attribute.find_by(
       object_lookup_id: data[:object_lookup_id],
-      name: data[:name],
+      name:             data[:name],
     )
   end
 
@@ -431,23 +478,25 @@ returns:
     # get attributes in right order
     result = ObjectManager::Attribute.where(
       object_lookup_id: object_lookup_id,
-      active: true,
-      to_create: false,
-      to_delete: false,
+      active:           true,
+      to_create:        false,
+      to_delete:        false,
     ).order('position ASC, name ASC')
     attributes = []
     result.each do |item|
       data = {
-        name: item.name,
+        name:    item.name,
         display: item.display,
-        tag: item.data_type,
+        tag:     item.data_type,
         #:null     => item.null,
       }
       if item.data_option[:permission]&.any?
         next if !user
+
         hint = false
         item.data_option[:permission].each do |permission|
           next if !user.permissions?(permission)
+
           hint = true
           break
         end
@@ -538,6 +587,7 @@ returns
 
   def self.pending_migration?
     return false if migrations.blank?
+
     true
   end
 
@@ -579,7 +629,7 @@ to send no browser reload event, pass false
     execute_db_count = 0
     execute_config_count = 0
     migrations.each do |attribute|
-      model = Kernel.const_get(attribute.object_lookup.name)
+      model = attribute.object_lookup.name.constantize
 
       # remove field
       if attribute.to_delete
@@ -595,11 +645,21 @@ to send no browser reload event, pass false
       # config changes
       if attribute.to_config
         execute_config_count += 1
+        if attribute.data_type == 'select' && attribute.data_option[:options]
+          historical_options = attribute.data_option[:historical_options] || {}
+          historical_options.update(attribute.data_option[:options])
+          historical_options.update(attribute.data_option_new[:options])
+          attribute.data_option_new[:historical_options] = historical_options
+        end
         attribute.data_option = attribute.data_option_new
         attribute.data_option_new = {}
         attribute.to_config = false
         attribute.save!
         next if !attribute.to_create && !attribute.to_migrate && !attribute.to_delete
+      end
+
+      if attribute.data_type == 'select' && attribute.data_option[:options]
+        attribute.data_option[:historical_options] = attribute.data_option[:options]
       end
 
       data_type = nil
@@ -623,7 +683,7 @@ to send no browser reload event, pass false
             attribute.name,
             data_type,
             limit: attribute.data_option[:maxlength],
-            null: true
+            null:  true
           )
         elsif attribute.data_type.match?(/^integer|user_autocompletion|datetime|date$/)
           ActiveRecord::Migration.change_column(
@@ -631,7 +691,7 @@ to send no browser reload event, pass false
             attribute.name,
             data_type,
             default: attribute.data_option[:default],
-            null: true
+            null:    true
           )
         elsif attribute.data_type.match?(/^boolean|active$/)
           ActiveRecord::Migration.change_column(
@@ -639,7 +699,7 @@ to send no browser reload event, pass false
             attribute.name,
             data_type,
             default: attribute.data_option[:default],
-            null: true
+            null:    true
           )
         else
           raise "Unknown attribute.data_type '#{attribute.data_type}', can't update attribute"
@@ -662,7 +722,7 @@ to send no browser reload event, pass false
           attribute.name,
           data_type,
           limit: attribute.data_option[:maxlength],
-          null: true
+          null:  true
         )
       elsif attribute.data_type.match?(/^integer|user_autocompletion$/)
         ActiveRecord::Migration.add_column(
@@ -670,7 +730,7 @@ to send no browser reload event, pass false
           attribute.name,
           data_type,
           default: attribute.data_option[:default],
-          null: true
+          null:    true
         )
       elsif attribute.data_type.match?(/^boolean|active$/)
         ActiveRecord::Migration.add_column(
@@ -678,7 +738,7 @@ to send no browser reload event, pass false
           attribute.name,
           data_type,
           default: attribute.data_option[:default],
-          null: true
+          null:    true
         )
       elsif attribute.data_type.match?(/^datetime|date$/)
         ActiveRecord::Migration.add_column(
@@ -686,7 +746,7 @@ to send no browser reload event, pass false
           attribute.name,
           data_type,
           default: attribute.data_option[:default],
-          null: true
+          null:    true
         )
       else
         raise "Unknown attribute.data_type '#{attribute.data_type}', can't create attribute"
@@ -708,7 +768,7 @@ to send no browser reload event, pass false
         if ENV['APP_RESTART_CMD']
           AppVersion.set(true, 'restart_auto')
           sleep 4
-          Delayed::Job.enqueue(Observer::AppVersionRestartJob.new(ENV['APP_RESTART_CMD']))
+          AppVersionRestartJob.perform_later(ENV['APP_RESTART_CMD'])
         else
           AppVersion.set(true, 'restart_manual')
         end
@@ -717,6 +777,112 @@ to send no browser reload event, pass false
       end
     end
     true
+  end
+
+=begin
+
+where attributes are used by triggers, overviews or schedulers
+
+  result = ObjectManager::Attribute.attribute_to_references_hash
+
+  result = {
+    ticket.category: {
+      Trigger: ['abc', 'xyz'],
+      Overview: ['abc1', 'abc2'],
+    },
+    ticket.field_b: {
+      Trigger: ['abc'],
+      Overview: ['abc1', 'abc2'],
+    },
+  },
+
+=end
+
+  def self.attribute_to_references_hash
+    objects = Trigger.select(:name, :condition) + Overview.select(:name, :condition) + Job.select(:name, :condition)
+    attribute_list = {}
+    objects.each do |item|
+      item.condition.each do |condition_key, _condition_attributes|
+        attribute_list[condition_key] ||= {}
+        attribute_list[condition_key][item.class.name] ||= []
+        next if attribute_list[condition_key][item.class.name].include?(item.name)
+
+        attribute_list[condition_key][item.class.name].push item.name
+      end
+    end
+    attribute_list
+  end
+
+=begin
+
+is certain attribute used by triggers, overviews or schedulers
+
+  ObjectManager::Attribute.attribute_used_by_references?('Ticket', 'attribute_name')
+
+=end
+
+  def self.attribute_used_by_references?(object_name, attribute_name, references = attribute_to_references_hash)
+    references.each do |reference_key, _relations|
+      local_object, local_attribute = reference_key.split('.')
+      next if local_object != object_name.downcase
+      next if local_attribute != attribute_name
+
+      return true
+    end
+    false
+  end
+
+=begin
+
+is certain attribute used by triggers, overviews or schedulers
+
+  result = ObjectManager::Attribute.attribute_used_by_references('Ticket', 'attribute_name')
+
+  result = {
+    Trigger: ['abc', 'xyz'],
+    Overview: ['abc1', 'abc2'],
+  }
+
+=end
+
+  def self.attribute_used_by_references(object_name, attribute_name, references = attribute_to_references_hash)
+    result = {}
+    references.each do |reference_key, relations|
+      local_object, local_attribute = reference_key.split('.')
+      next if local_object != object_name.downcase
+      next if local_attribute != attribute_name
+
+      relations.each do |relation, relation_names|
+        result[relation] ||= []
+        result[relation].push relation_names.sort
+      end
+      break
+    end
+    result
+  end
+
+=begin
+
+is certain attribute used by triggers, overviews or schedulers
+
+  text = ObjectManager::Attribute.attribute_used_by_references_humaniced('Ticket', 'attribute_name', references)
+
+=end
+
+  def self.attribute_used_by_references_humaniced(object_name, attribute_name, references = nil)
+    result = if references.present?
+               ObjectManager::Attribute.attribute_used_by_references(object_name, attribute_name, references)
+             else
+               ObjectManager::Attribute.attribute_used_by_references(object_name, attribute_name)
+             end
+    not_deletable_reason = ''
+    result.each do |relation, relation_names|
+      if not_deletable_reason.present?
+        not_deletable_reason += '; '
+      end
+      not_deletable_reason += "#{relation}: #{relation_names.sort.join(',')}"
+    end
+    not_deletable_reason
   end
 
   def self.reset_database_info(model)
@@ -739,81 +905,106 @@ to send no browser reload event, pass false
     reserved_words = %w[destroy true false integer select drop create alter index table varchar blob date datetime timestamp]
     raise "#{name} is a reserved word, please choose a different one" if name.match?(/^(#{reserved_words.join('|')})$/)
 
+    # fixes issue #2236 - Naming an attribute "attribute" causes ActiveRecord failure
+    begin
+      ObjectLookup.by_id(object_lookup_id).constantize.instance_method_already_implemented? name
+    rescue  ActiveRecord::DangerousAttributeError => e
+      raise "#{name} is a reserved word, please choose a different one"
+    end
+
     record = object_lookup.name.constantize.new
     return true if !record.respond_to?(name.to_sym)
+    raise "#{name} already exists!" if record.attributes.key?(name) && new_record?
     return true if record.attributes.key?(name)
+
     raise "#{name} is a reserved word, please choose a different one"
   end
 
   def check_editable
     return if editable
+
     raise 'Attribute not editable!'
   end
 
-  def check_datatype
-    if !data_type
-      raise 'Need data_type param'
-    end
-    if data_type !~ /^(input|user_autocompletion|checkbox|select|tree_select|datetime|date|tag|richtext|textarea|integer|autocompletion_ajax|boolean|user_permission|active)$/
-      raise "Invalid data_type param '#{data_type}'"
-    end
+  private
 
-    if !data_option
-      raise 'Need data_type param'
-    end
-    if data_option[:null].nil?
-      raise 'Need data_option[:null] param with true or false'
-    end
+  # when setting default values for boolean fields,
+  # favor #nil? tests over ||= (which will overwrite `false`)
+  def set_base_options
+    local_data_option[:null] = true if local_data_option[:null].nil?
 
-    # validate data_option
-    if data_type == 'input'
-      raise 'Need data_option[:type] param' if !data_option[:type]
-      raise "Invalid data_option[:type] param '#{data_option[:type]}'" if data_option[:type] !~ /^(text|password|tel|fax|email|url)$/
-      raise 'Need data_option[:maxlength] param' if !data_option[:maxlength]
-      raise "Invalid data_option[:maxlength] param #{data_option[:maxlength]}" if data_option[:maxlength].to_s !~ /^\d+?$/
+    case data_type
+    when /^((tree_)?select|checkbox)$/
+      local_data_option[:nulloption] = true if local_data_option[:nulloption].nil?
+      local_data_option[:maxlength] ||= 255
     end
-
-    if data_type == 'richtext'
-      raise 'Need data_option[:maxlength] param' if !data_option[:maxlength]
-      raise "Invalid data_option[:maxlength] param #{data_option[:maxlength]}" if data_option[:maxlength].to_s !~ /^\d+?$/
-    end
-
-    if data_type == 'integer'
-      %i[min max].each do |item|
-        raise "Need data_option[#{item.inspect}] param" if !data_option[item]
-        raise "Invalid data_option[#{item.inspect}] param #{data_option[item]}" if data_option[item].to_s !~ /^\d+?$/
-      end
-    end
-
-    if data_type == 'select' || data_type == 'tree_select' || data_type == 'checkbox'
-      raise 'Need data_option[:default] param' if !data_option.key?(:default)
-      raise 'Invalid data_option[:options] or data_option[:relation] param' if data_option[:options].nil? && data_option[:relation].nil?
-      if !data_option.key?(:maxlength)
-        data_option[:maxlength] = 255
-      end
-      if !data_option.key?(:nulloption)
-        data_option[:nulloption] = true
-      end
-    end
-
-    if data_type == 'boolean'
-      raise 'Need data_option[:default] param true|false|undefined' if !data_option.key?(:default)
-      raise 'Invalid data_option[:options] param' if data_option[:options].nil?
-    end
-
-    if data_type == 'datetime'
-      raise 'Need data_option[:future] param true|false' if data_option[:future].nil?
-      raise 'Need data_option[:past] param true|false' if data_option[:past].nil?
-      raise 'Need data_option[:diff] param in hours' if data_option[:diff].nil?
-    end
-
-    if data_type == 'date'
-      raise 'Need data_option[:future] param true|false' if data_option[:future].nil?
-      raise 'Need data_option[:past] param true|false' if data_option[:past].nil?
-      raise 'Need data_option[:diff] param in days' if data_option[:diff].nil?
-    end
-
-    true
   end
 
+  def data_option_must_have_appropriate_values
+    data_option_validations
+      .select { |validation| validation[:failed] }
+      .each { |validation| errors.add(local_data_attr, validation[:message]) }
+  end
+
+  def data_type_must_not_change
+    allowable_changes = %w[tree_select select input checkbox]
+
+    return if !data_type_changed?
+    return if (data_type_change - allowable_changes).empty?
+
+    errors.add(:data_type, "can't be altered after creation " \
+                           '(delete the attribute and create another with the desired value)')
+  end
+
+  def local_data_option
+    @local_data_option ||= send(local_data_attr)
+  end
+
+  def local_data_attr
+    @local_data_attr ||= to_config ? :data_option_new : :data_option
+  end
+
+  def local_data_option=(val)
+    send("#{local_data_attr}=", val)
+  end
+
+  def data_option_validations
+    case data_type
+    when 'input'
+      [{ failed:  %w[text password tel fax email url].exclude?(local_data_option[:type]),
+         message: 'must have one of text/password/tel/fax/email/url for :type' },
+       { failed:  !local_data_option[:maxlength].to_s.match?(/^\d+$/),
+         message: 'must have integer for :maxlength' }]
+    when 'richtext'
+      [{ failed:  !local_data_option[:maxlength].to_s.match?(/^\d+$/),
+         message: 'must have integer for :maxlength' }]
+    when 'integer'
+      [{ failed:  !local_data_option[:min].to_s.match?(/^\d+$/),
+         message: 'must have integer for :min' },
+       { failed:  !local_data_option[:max].to_s.match?(/^\d+$/),
+         message: 'must have integer for :max' }]
+    when /^((tree_)?select|checkbox)$/
+      [{ failed:  !local_data_option.key?(:default),
+         message: 'must have value for :default' },
+       { failed:  local_data_option[:options].nil? && local_data_option[:relation].nil?,
+         message: 'must have non-nil value for either :options or :relation' }]
+    when 'boolean'
+      [{ failed:  !local_data_option.key?(:default),
+         message: 'must have boolean/undefined value for :default' },
+       { failed:  local_data_option[:options].nil?,
+         message: 'must have non-nil value for :options' }]
+    when 'datetime'
+      [{ failed:  local_data_option[:future].nil?,
+         message: 'must have boolean value for :future' },
+       { failed:  local_data_option[:past].nil?,
+         message: 'must have boolean value for :past' },
+       { failed:  local_data_option[:diff].nil?,
+         message: 'must have integer value for :diff (in hours)' }]
+    when 'date'
+      [{ failed:  local_data_option[:diff].nil?,
+         message: 'must have integer value for :diff (in days)' }]
+    else
+      []
+    end
+  end
 end

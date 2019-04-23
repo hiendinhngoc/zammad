@@ -1,4 +1,7 @@
 class App.Navigation extends App.ControllerWidgetPermanent
+  @extend App.PopoverProvidable
+  @registerAllPopovers()
+
   className: 'navigation vertical'
 
   elements:
@@ -15,7 +18,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
     'focus #global-search': 'searchFocus'
     'blur #global-search': 'searchBlur'
     'keyup #global-search': 'listNavigate'
-    'click .js-global-search-result': 'andClose'
+    'click .js-global-search-result': 'emptyAndCloseDelayed'
     'click .js-details-link': 'openExtendedSearch'
     'change .js-menu .js-switch input': 'switch'
 
@@ -156,14 +159,19 @@ class App.Navigation extends App.ControllerWidgetPermanent
         type:      'personal'
       )
 
-  renderResult: (result = []) =>
+  renderResult: (result = [], noChange) =>
+    if noChange
+      return
+
+    @removePopovers()
 
     # remove result if not result exists
     if _.isEmpty(result)
-      @searchContainer.removeClass('open')
-      @globalSearch.close()
-      @searchResult.html('')
+      @searchContainer.removeClass('loading').addClass('no-match')
+      @searchResult.html(App.view('navigation/no_result')())
       return
+
+    @searchContainer.removeClass('no-match loading')
 
     # build markup
     html = App.view('navigation/result')(
@@ -171,17 +179,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
     )
     @searchResult.html(html)
 
-    # show result list
-    @searchContainer.addClass('open')
-
-    # start ticket popups
-    @ticketPopups()
-
-    # start user popups
-    @userPopups()
-
-    # start oorganization popups
-    @organizationPopups()
+    @renderPopovers()
 
   render: ->
 
@@ -204,27 +202,23 @@ class App.Navigation extends App.ControllerWidgetPermanent
     $('#app').append @notificationWidget.el
 
   searchFocus: (e) =>
-    @query = '' # reset query cache
+    @clearDelay('emptyAndCloseDelayed')
+    @throttledSearch()
+    App.PopoverProvidable.anyPopoversDestroy()
     @searchContainer.addClass('focused')
-    @anyPopoversDestroy()
-    @search()
+    @selectAll(e)
 
   searchBlur: (e) =>
 
-    # delay to be able to click x
+    # delay to be able to "click/execute" x if query is ''
     update = =>
-      query = @searchInput.val().trim()
-      if !query
+      if @searchInput.val().trim() is ''
         @emptyAndClose()
-        return
-      @searchContainer.removeClass('focused')
-
     @delay(update, 100, 'removeFocused')
 
   listNavigate: (e) =>
     if e.keyCode is 27 # close on esc
       @emptyAndClose()
-      @searchInput.blur()
       return
     else if e.keyCode is 38 # up
       @nudge(e, -1)
@@ -233,14 +227,13 @@ class App.Navigation extends App.ControllerWidgetPermanent
       @nudge(e, 1)
       return
     else if e.keyCode is 13 # enter
-      if @$('.global-search-menu .js-details-link.is-hover').get(0)
-        @openExtendedSearch()
-        return
-      href = @$('.global-search-result .nav-tab.is-hover').attr('href')
-      return if !href
-      @navigate(href)
-      @emptyAndClose()
       @searchInput.blur()
+      href = @$('.global-search-result .nav-tab.is-hover').attr('href')
+      if href
+        @navigate(href)
+        @emptyAndCloseDelayed()
+      else
+        @openExtendedSearch()
       return
 
     # on other keys, show result
@@ -284,26 +277,65 @@ class App.Navigation extends App.ControllerWidgetPermanent
       @scrollToIfNeeded(prev, false)
 
   emptyAndClose: =>
-    @searchInput.val('')
-    @searchContainer.removeClass('filled').removeClass('open').removeClass('focused')
-    @globalSearch.close()
+    @andClose()
+    @andEmpty()
 
-    # remove not needed popovers
-    @delay(@anyPopoversDestroy, 100, 'removePopovers')
+  emptyAndCloseDelayed: =>
+    @andClose()
+    delay = =>
+      @andEmpty()
+    @delay(delay, 60000, 'emptyAndCloseDelayed')
+
+  andEmpty: =>
+    @query = ''
+    @searchInput.val('')
 
   andClose: =>
-    @searchInput.blur()
-    @searchContainer.removeClass('open')
+    @searchContainer.removeClass('focused filled open no-match loading')
     @globalSearch.close()
-    @delay(@anyPopoversDestroy, 100, 'removePopovers')
+    @delayedRemoveAnyPopover()
 
   search: =>
     query = @searchInput.val().trim()
-    return if !query
-    return if query is @query
+    @searchContainer.toggleClass('filled', !!query)
+
+    # if we started a new search and already typed something in
+    if query != '' and @query == ''
+      @searchContainer.addClass('open no-match loading')
+
     @query = query
-    @searchContainer.toggleClass('filled', !!@query)
+
+    if @query == ''
+      @searchContainer.removeClass('open loading')
+      return
+
+    @searchContainer.addClass('open')
     @globalSearch.search(query: @query)
+
+  filterNavbar: (values, parent = null) ->
+    return _.filter values, (item) =>
+      if typeof item.callback is 'function'
+        data = item.callback() || {}
+        for key, value of data
+          item[key] = value
+
+      if !parent? && !item.parent || item.parent is parent
+        return @filterNavbarPermissionOk(item) &&
+          @filterNavbarSettingOk(item)
+      else
+        return false
+
+  filterNavbarPermissionOk: (item) ->
+    return true unless item.permission
+
+    return _.any item.permission, (permissionName) =>
+      return @permissionCheck(permissionName)
+
+  filterNavbarSettingOk: (item) ->
+    return true unless item.setting
+
+    return _.any item.setting, (settingName) =>
+      return @Config.get(settingName)
 
   getItems: (data) ->
     navbar =  _.values(data.navbar)
@@ -311,42 +343,12 @@ class App.Navigation extends App.ControllerWidgetPermanent
     level1 = []
     dropdown = {}
 
-    user = undefined
-    if App.Session.get('id')
-      user = App.User.find(App.Session.get('id'))
-
-    for item in navbar
-      if typeof item.callback is 'function'
-        data = item.callback() || {}
-        for key, value of data
-          item[key] = value
-      if !item.parent
-        match = true
-        if item.permission
-          match = false
-          for permissionName in item.permission
-            if !match && user && user.permission(permissionName)
-              match = true
-        if match
-          level1.push item
+    level1 = @filterNavbar(navbar)
 
     for item in navbar
       if item.parent && !dropdown[ item.parent ]
-        dropdown[ item.parent ] = []
+        dropdown[ item.parent ] = @filterNavbar(navbar, item.parent)
 
-        # find all childs and order
-        for itemSub in navbar
-          if itemSub.parent is item.parent
-            match = true
-            if itemSub.permission
-              match = false
-              for permissionName in itemSub.permission
-                if !match && user && user.permission(permissionName)
-                  match = true
-            if match
-              dropdown[ item.parent ].push itemSub
-
-        # find parent
         for itemLevel1 in level1
           if itemLevel1.target is item.parent
             sub = @getOrder(dropdown[ item.parent ])
@@ -403,11 +405,11 @@ class App.Navigation extends App.ControllerWidgetPermanent
       url = params.url
       type = params.type
     if type is 'menu'
-      @$('.js-menu .is-active, .js-details-link.is-active').removeClass('is-active')
+      @$('.js-menu .is-active').removeClass('is-active')
     else
       @$('.is-active').removeClass('is-active')
     return if !url || url is '#'
-    @$("[href=\"#{url}\"]").addClass('is-active')
+    @$(".js-menu [href=\"#{url}\"], .tasks [href=\"#{url}\"]").addClass('is-active')
 
   recentViewNavbarItemsRebuild: =>
 
@@ -448,10 +450,9 @@ class App.Navigation extends App.ControllerWidgetPermanent
     @Config.set('NavBarRight', NavBarRight)
 
   fetchRecentView: =>
-    load = (data) =>
-      App.RecentView.refresh(data.stream, clear: true)
+    load = =>
       @renderPersonal()
-    App.RecentView.fetchFull(load)
+    App.RecentView.fetchFull(load, clear: true)
 
   toggleNotifications: (e) ->
     e.stopPropagation()
@@ -461,7 +462,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
     if e
       e.preventDefault()
     query = @searchInput.val()
-    @searchInput.val('').blur()
+    @emptyAndClose()
     if query
       @navigate("#search/#{encodeURIComponent(query)}")
       return

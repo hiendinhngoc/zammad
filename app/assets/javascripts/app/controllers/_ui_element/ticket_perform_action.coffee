@@ -7,6 +7,9 @@ class App.UiElement.ticket_perform_action
       ticket:
         name: 'Ticket'
         model: 'Ticket'
+      article:
+        name: 'Article'
+        model: 'Article'
 
     if attribute.notification
       groups.notification =
@@ -16,8 +19,12 @@ class App.UiElement.ticket_perform_action
     # megre config
     elements = {}
     for groupKey, groupMeta of groups
-      if !App[groupMeta.model]
-        elements["#{groupKey}.email"] = { name: 'email', display: 'Email' }
+      if !groupMeta.model || !App[groupMeta.model]
+        if groupKey is 'notification'
+          elements["#{groupKey}.email"] = { name: 'email', display: 'Email' }
+          elements["#{groupKey}.sms"] = { name: 'sms', display: 'SMS' }
+        else if groupKey is 'article'
+          elements["#{groupKey}.note"] = { name: 'note', display: 'Note' }
       else
 
         for row in App[groupMeta.model].configure_attributes
@@ -45,76 +52,40 @@ class App.UiElement.ticket_perform_action
 
     [defaults, groups, elements]
 
+  @placeholder: (elementFull, attribute, params, groups, elements) ->
+    item = $( App.view('generic/ticket_perform_action/row')( attribute: attribute ) )
+    selector = @buildAttributeSelector(elementFull, groups, elements)
+    item.find('.js-attributeSelector').prepend(selector)
+    item
+
   @render: (attribute, params = {}) ->
 
     [defaults, groups, elements] = @defaults(attribute)
 
-    selector = @buildAttributeSelector(groups, elements)
-
     # return item
     item = $( App.view('generic/ticket_perform_action/index')( attribute: attribute ) )
-    item.find('.js-attributeSelector').prepend(selector)
 
     # add filter
-    item.find('.js-add').bind('click', (e) =>
+    item.on('click', '.js-add', (e) =>
       element = $(e.target).closest('.js-filterElement')
-      elementClone = element.clone(true)
-      element.after(elementClone)
-      elementClone.find('.js-attributeSelector select').trigger('change')
+      placeholder = @placeholder(item, attribute, params, groups, elements)
+      if element.get(0)
+        element.after(placeholder)
+      else
+        item.append(placeholder)
+      placeholder.find('.js-attributeSelector select').trigger('change')
       @updateAttributeSelectors(item)
     )
 
     # remove filter
-    item.find('.js-remove').bind('click', (e) =>
+    item.on('click', '.js-remove', (e) =>
       return if $(e.currentTarget).hasClass('is-disabled')
       $(e.target).closest('.js-filterElement').remove()
       @updateAttributeSelectors(item)
     )
 
     # change attribute selector
-    item.find('.js-attributeSelector select').bind('change', (e) =>
-      elementRow = $(e.target).closest('.js-filterElement')
-      groupAndAttribute = elementRow.find('.js-attributeSelector option:selected').attr('value')
-      @rebuildAttributeSelectors(item, elementRow, groupAndAttribute, elements, {}, attribute)
-      @updateAttributeSelectors(item)
-    )
-
-    # build inital params
-    if !_.isEmpty(params[attribute.name])
-
-      selectorExists = false
-      for groupAndAttribute, meta of params[attribute.name]
-        selectorExists = true
-
-        # get selector rows
-        elementFirst = item.find('.js-filterElement').first()
-        elementLast = item.find('.js-filterElement').last()
-
-        # clone, rebuild and append
-        elementClone = elementFirst.clone(true)
-        @rebuildAttributeSelectors(item, elementClone, groupAndAttribute, elements, meta, attribute)
-        elementLast.after(elementClone)
-
-      # remove first dummy row
-      if selectorExists
-        item.find('.js-filterElement').first().remove()
-
-    else
-      for groupAndAttribute in defaults
-
-        # get selector rows
-        elementFirst = item.find('.js-filterElement').first()
-        elementLast = item.find('.js-filterElement').last()
-
-        # clone, rebuild and append
-        elementClone = elementFirst.clone(true)
-        @rebuildAttributeSelectors(item, elementClone, groupAndAttribute, elements, {}, attribute)
-
-        elementLast.after(elementClone)
-      item.find('.js-filterElement').first().remove()
-
-    # change attribute selector
-    item.find('.js-attributeSelector select').bind('change', (e) =>
+    item.on('change', '.js-attributeSelector select', (e) =>
       elementRow = $(e.target).closest('.js-filterElement')
       groupAndAttribute = elementRow.find('.js-attributeSelector option:selected').attr('value')
       @rebuildAttributeSelectors(item, elementRow, groupAndAttribute, elements, {}, attribute)
@@ -128,9 +99,35 @@ class App.UiElement.ticket_perform_action
       @buildOperator(item, elementRow, groupAndAttribute, elements, {}, attribute)
     )
 
+    # build inital params
+    if _.isEmpty(params[attribute.name])
+
+      for groupAndAttribute in defaults
+
+        # build and append
+        element = @placeholder(item, attribute, params, groups, elements)
+        item.append(element)
+        @rebuildAttributeSelectors(item, element, groupAndAttribute, elements, {}, attribute)
+
+      return item
+
+    for groupAndAttribute, meta of params[attribute.name]
+
+      # build and append
+      element = @placeholder(item, attribute, params, groups, elements)
+      @rebuildAttributeSelectors(item, element, groupAndAttribute, elements, meta, attribute)
+      item.append(element)
     item
 
-  @buildAttributeSelector: (groups, elements) ->
+  @buildAttributeSelector: (elementFull, groups, elements) ->
+
+    # find first possible attribute
+    selectedValue = ''
+    elementFull.find('.js-attributeSelector select option').each(->
+      if !selectedValue && !$(@).prop('disabled')
+        selectedValue = $(@).val()
+    )
+
     selection = $('<select class="form-control"></select>')
     for groupKey, groupMeta of groups
       displayName = App.i18n.translateInline(groupMeta.name)
@@ -141,7 +138,11 @@ class App.UiElement.ticket_perform_action
         if spacer[0] is groupKey
           attributeConfig = elements[elementKey]
           displayName = App.i18n.translateInline(attributeConfig.display)
-          optgroup.append("<option value=\"#{elementKey}\">#{displayName}</option>")
+
+          selected = ''
+          if elementKey is selectedValue
+            selected = 'selected="selected"'
+          optgroup.append("<option value=\"#{elementKey}\" #{selected}>#{displayName}</option>")
     selection
 
   @updateAttributeSelectors: (elementFull) ->
@@ -167,18 +168,27 @@ class App.UiElement.ticket_perform_action
     if groupAndAttribute
       elementRow.find('.js-attributeSelector select').val(groupAndAttribute)
 
-    if groupAndAttribute is 'notification.email'
-      elementRow.find('.js-setAttribute').html('')
-      @buildRecipientList(elementFull, elementRow, groupAndAttribute, elements, meta, attribute)
+    notificationTypeMatch = groupAndAttribute.match(/^notification.([\w]+)$/)
+    articleTypeMatch = groupAndAttribute.match(/^article.([\w]+)$/)
+
+    if _.isArray(notificationTypeMatch) && notificationType = notificationTypeMatch[1]
+      elementRow.find('.js-setAttribute').html('').addClass('hide')
+      elementRow.find('.js-setArticle').html('').addClass('hide')
+      @buildNotificationArea(notificationType, elementFull, elementRow, groupAndAttribute, elements, meta, attribute)
+    else if _.isArray(articleTypeMatch) && articleType = articleTypeMatch[1]
+      elementRow.find('.js-setAttribute').html('').addClass('hide')
+      elementRow.find('.js-setNotification').html('').addClass('hide')
+      @buildArticleArea(articleType, elementFull, elementRow, groupAndAttribute, elements, meta, attribute)
     else
-      elementRow.find('.js-setNotification').html('')
+      elementRow.find('.js-setNotification').html('').addClass('hide')
+      elementRow.find('.js-setArticle').html('').addClass('hide')
       if !elementRow.find('.js-setAttribute div').get(0)
         attributeSelectorElement = $( App.view('generic/ticket_perform_action/attribute_selector')(
           attribute: attribute
           name: name
           meta: meta || {}
         ))
-        elementRow.find('.js-setAttribute').html(attributeSelectorElement)
+        elementRow.find('.js-setAttribute').html(attributeSelectorElement).removeClass('hide')
       @buildOperator(elementFull, elementRow, groupAndAttribute, elements, meta, attribute)
 
   @buildOperator: (elementFull, elementRow, groupAndAttribute, elements, meta, attribute) ->
@@ -191,11 +201,11 @@ class App.UiElement.ticket_perform_action
 
     selection = $("<select class=\"form-control\" name=\"#{name}\"></select>")
     attributeConfig = elements[groupAndAttribute]
-    if !attributeConfig.operator
+    if !attributeConfig || !attributeConfig.operator
       elementRow.find('.js-operator').addClass('hide')
     else
       elementRow.find('.js-operator').removeClass('hide')
-    if attributeConfig.operator
+    if attributeConfig && attributeConfig.operator
       for operator in attributeConfig.operator
         operatorName = App.i18n.translateInline(operator)
         selected = ''
@@ -310,9 +320,11 @@ class App.UiElement.ticket_perform_action
 
     elementRow.find('.js-value').removeClass('hide').html(item)
 
-  @buildRecipientList: (elementFull, elementRow, groupAndAttribute, elements, meta, attribute) ->
+  @buildNotificationArea: (notificationType, elementFull, elementRow, groupAndAttribute, elements, meta, attribute) ->
 
-    return if elementRow.find('.js-setNotification .js-body').get(0)
+    return if elementRow.find(".js-setNotification .js-body-#{notificationType}").get(0)
+
+    elementRow.find('.js-setNotification').empty()
 
     options =
       'article_last_sender': 'Article Last Sender'
@@ -320,7 +332,11 @@ class App.UiElement.ticket_perform_action
       'ticket_customer': 'Customer'
       'ticket_agents': 'All Agents'
 
-    name = "#{attribute.name}::notification.email"
+    name = "#{attribute.name}::notification.#{notificationType}"
+
+    messageLength = switch notificationType
+      when 'sms' then 160
+      else 200000
 
     # meta.recipient was a string in the past (single-select) so we convert it to array if needed
     if !_.isArray(meta.recipient)
@@ -341,16 +357,17 @@ class App.UiElement.ticket_perform_action
 
     selection = column_select.element()
 
-    notificationElement = $( App.view('generic/ticket_perform_action/notification_email')(
+    notificationElement = $( App.view('generic/ticket_perform_action/notification')(
       attribute: attribute
       name: name
+      notificationType: notificationType
       meta: meta || {}
     ))
     notificationElement.find('.js-recipient select').replaceWith(selection)
     notificationElement.find('.js-body div[contenteditable="true"]').ce(
       mode: 'richtext'
       placeholder: 'message'
-      maxlength: 20000
+      maxlength: messageLength
     )
     new App.WidgetPlaceholder(
       el: notificationElement.find('.js-body div[contenteditable="true"]').parent()
@@ -361,6 +378,11 @@ class App.UiElement.ticket_perform_action
           display: 'Ticket'
         },
         {
+          prefix: 'article'
+          object: 'TicketArticle'
+          display: 'Article'
+        },
+        {
           prefix: 'user'
           object: 'User'
           display: 'Current User'
@@ -368,7 +390,59 @@ class App.UiElement.ticket_perform_action
       ]
     )
 
-    elementRow.find('.js-setNotification').html(notificationElement)
+    elementRow.find('.js-setNotification').html(notificationElement).removeClass('hide')
+
+  @buildArticleArea: (articleType, elementFull, elementRow, groupAndAttribute, elements, meta, attribute) ->
+
+    return if elementRow.find(".js-setArticle .js-body-#{articleType}").get(0)
+
+    elementRow.find('.js-setArticle').empty()
+
+    name = "#{attribute.name}::article.#{articleType}"
+    console.log('meta', meta)
+    selection = App.UiElement.select.render(
+      name: "#{name}::internal"
+      multiple: false
+      null: false
+      options: { true: 'internal', false: 'public' }
+      value: meta.internal
+      class: 'form-control--small'
+      translate: true
+    )
+    articleElement = $( App.view('generic/ticket_perform_action/article')(
+      attribute: attribute
+      name: name
+      articleType: articleType
+      meta: meta || {}
+    ))
+    articleElement.find('.js-internal').html(selection)
+    articleElement.find('.js-body div[contenteditable="true"]').ce(
+      mode: 'richtext'
+      placeholder: 'message'
+      maxlength: 200000
+    )
+    new App.WidgetPlaceholder(
+      el: articleElement.find('.js-body div[contenteditable="true"]').parent()
+      objects: [
+        {
+          prefix: 'ticket'
+          object: 'Ticket'
+          display: 'Ticket'
+        },
+        {
+          prefix: 'article'
+          object: 'TicketArticle'
+          display: 'Article'
+        },
+        {
+          prefix: 'user'
+          object: 'User'
+          display: 'Current User'
+        },
+      ]
+    )
+
+    elementRow.find('.js-setArticle').html(articleElement).removeClass('hide')
 
   @humanText: (condition) ->
     none = App.i18n.translateContent('No filter.')

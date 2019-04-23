@@ -1,3 +1,5 @@
+require 'rchardet'
+
 class String
   alias old_strip strip
   alias old_strip! strip!
@@ -8,7 +10,7 @@ class String
       sub!(/[[[:space:]]\u{200B}\u{FEFF}]+\Z/, '')
 
     # if incompatible encoding regexp match (UTF-8 regexp with ASCII-8BIT string) (Encoding::CompatibilityError), use default
-    rescue
+    rescue Encoding::CompatibilityError
       old_strip!
     end
     self
@@ -20,7 +22,7 @@ class String
       new_string.sub!(/[[[:space:]]\u{200B}\u{FEFF}]+\Z/, '')
 
     # if incompatible encoding regexp match (UTF-8 regexp with ASCII-8BIT string) (Encoding::CompatibilityError), use default
-    rescue
+    rescue Encoding::CompatibilityError
       new_string = old_strip
     end
     new_string
@@ -85,6 +87,7 @@ class String
   # More details: http://pjambet.github.io/blog/emojis-and-mysql/
   def utf8_to_3bytesutf8
     return self if Rails.application.config.db_4bytes_utf8
+
     each_char.select do |c|
       if c.bytes.count > 3
         Rails.logger.warn "strip out 4 bytes utf8 chars '#{c}' of '#{self}'"
@@ -109,7 +112,7 @@ class String
     string = "#{self}" # rubocop:disable Style/UnneededInterpolation
 
     # in case of invalid encoding, strip invalid chars
-    # see also test/fixtures/mail21.box
+    # see also test/data/mail/mail021.box
     # note: string.encode!('UTF-8', 'UTF-8', :invalid => :replace, :replace => '?') was not detecting invalid chars
     if !string.valid_encoding?
       string = string.chars.select(&:valid_encoding?).join
@@ -122,11 +125,13 @@ class String
     link_list = ''
     counter   = 0
     if !string_only
-      string.gsub!(/<a[[:space:]].*?href=("|')(.+?)("|').*?>/ix) do
-        link = $2
-        counter = counter + 1
-        link_list += "[#{counter}] #{link}\n"
-        "[#{counter}] "
+      if string.scan(/<a[[:space:]]/i).count < 5_000
+        string.gsub!(/<a[[:space:]].*?href=("|')(.+?)("|').*?>/ix) do
+          link = $2
+          counter = counter + 1
+          link_list += "[#{counter}] #{link}\n"
+          "[#{counter}] "
+        end
       end
     else
       string.gsub!(%r{<a[[:space:]]+(|\S+[[:space:]]+)href=("|')(.+?)("|')([[:space:]]*|[[:space:]]+[^>]*)>(.+?)<[[:space:]]*/a[[:space:]]*>}mxi) do |_placeholder|
@@ -445,10 +450,85 @@ class String
         end
       rescue
         # regexp was not possible because of some string encoding issue, use next
-        Rails.logger.debug "Invalid string/charset combination with regexp #{regexp} in string"
+        Rails.logger.debug { "Invalid string/charset combination with regexp #{regexp} in string" }
       end
     end
 
     string
+  end
+
+  # Returns a copied string whose encoding is UTF-8.
+  # If both the provided and current encodings are invalid,
+  # an auto-detected encoding is tried.
+  #
+  # Supports some fallback strategies if a valid encoding cannot be found.
+  #
+  # Options:
+  #
+  #   * from: An encoding to try first.
+  #           Takes precedence over the current and auto-detected encodings.
+  #
+  #   * fallback: The strategy to follow if no valid encoding can be found.
+  #     * `:output_to_binary` returns an ASCII-8BIT-encoded string.
+  #     * `:read_as_sanitized_binary` returns a UTF-8-encoded string with all
+  #       invalid byte sequences replaced with "?" characters.
+  def utf8_encode(**options)
+    dup.utf8_encode!(options)
+  end
+
+  def utf8_encode!(**options)
+    return force_encoding('utf-8') if dup.force_encoding('utf-8').valid_encoding?
+
+    # convert string to given charset, if valid_encoding? is true
+    if options[:from].present?
+      begin
+        encoding = Encoding.find(options[:from])
+        if encoding.present? && dup.force_encoding(encoding).valid_encoding?
+          force_encoding(encoding)
+          return encode!('utf-8', encoding)
+        end
+      rescue ArgumentError, EncodingError => e
+        Rails.logger.error { e.inspect }
+      end
+    end
+
+    # try to find valid encodings of string
+    viable_encodings.each do |enc|
+      begin
+        return encode!('utf-8', enc)
+      rescue EncodingError => e
+        Rails.logger.error { e.inspect }
+      end
+    end
+
+    case options[:fallback]
+    when :output_to_binary
+      force_encoding('ascii-8bit')
+    when :read_as_sanitized_binary
+      encode!('utf-8', 'ascii-8bit', invalid: :replace, undef: :replace, replace: '?')
+    else
+      raise EncodingError, 'could not find a valid input encoding'
+    end
+  end
+
+  private
+
+  def viable_encodings(try_first: nil)
+    return dup.viable_encodings(try_first: try_first) if frozen?
+
+    provided = Encoding.find(try_first) if try_first.present?
+    original = encoding
+    detected = CharDet.detect(self)['encoding']
+
+    [provided, original, detected]
+      .compact
+      .reject { |e| Encoding.find(e) == Encoding::ASCII_8BIT }
+      .reject { |e| Encoding.find(e) == Encoding::UTF_8 }
+      .select { |e| force_encoding(e).valid_encoding? }
+      .tap { force_encoding(original) } # clean up changes from previous line
+
+  # if `try_first` is not a valid encoding, try_first again without it
+  rescue ArgumentError
+    try_first.present? ? viable_encodings : raise
   end
 end

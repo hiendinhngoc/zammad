@@ -1,5 +1,6 @@
 class App.Controller extends Spine.Controller
   @include App.LogInclude
+  @include App.RenderScreen
 
   constructor: (params) ->
 
@@ -74,13 +75,18 @@ class App.Controller extends Spine.Controller
     App.Event.unbindLevel(@controllerId)
     App.Delay.clearLevel(@controllerId)
     App.Interval.clearLevel(@controllerId)
-    if @ajaxCalls
-      for callId in @ajaxCalls
-        App.Ajax.abort(callId)
-    @userTicketPopupsDestroy()
-    @ticketPopupsDestroy()
-    @userPopupsDestroy()
-    @organizationPopupsDestroy()
+    @abortAjaxCalls()
+
+  abortAjaxCalls: =>
+    if !@ajaxCalls
+      return
+
+    idsToCancel = @ajaxCalls
+
+    @ajaxCalls = []
+
+    for callId in idsToCancel
+      App.Ajax.abort(callId)
 
   release: ->
     # release custom bindings after it got removed from dom
@@ -138,6 +144,12 @@ class App.Controller extends Spine.Controller
       App.Event.trigger('menu:render')
     @delay(delay, 150)
 
+  closeTab: (key = @taskKey, dest) =>
+    return if !key?
+    App.TaskManager.remove(key)
+    dest ?= App.TaskManager.nextTaskUrl() || '#'
+    @navigate dest
+
   scrollTo: (x = 0, y = 0, delay = 0) ->
     a = ->
       window.scrollTo(x, y)
@@ -176,11 +188,11 @@ class App.Controller extends Spine.Controller
   formParam: (form) ->
     App.ControllerForm.params(form)
 
-  formDisable: (form) ->
-    App.ControllerForm.disable(form)
+  formDisable: (form, type) ->
+    App.ControllerForm.disable(form, type)
 
-  formEnable: (form) ->
-    App.ControllerForm.enable(form)
+  formEnable: (form, type) ->
+    App.ControllerForm.enable(form, type)
 
   formValidate: (data) ->
     App.ControllerForm.validate(data)
@@ -237,11 +249,7 @@ class App.Controller extends Spine.Controller
     false
 
   permissionCheck: (key) ->
-    userId = App.Session.get('id')
-    return false if !userId
-    user = App.User.findNative(userId)
-    return false if !user
-    user.permission(key)
+    App.User.current()?.permission(key)
 
   authenticateCheckRedirect: ->
     return true if @authenticateCheck()
@@ -289,228 +297,6 @@ class App.Controller extends Spine.Controller
     item.attr('title', App.i18n.translateTimestamp(timestamp))
     item.html(time)
 
-  ticketPopups: (position = 'right') ->
-
-    # open ticket in new task if curent user agent
-    if @permissionCheck('ticket.agent')
-      @$('div.ticket-popover, span.ticket-popover').bind('click', (e) =>
-        id = $(e.target).data('id')
-        return if !id
-        ticket = App.Ticket.findNative(id)
-        @navigate ticket.uiUrl()
-      )
-
-    @ticketPopupsDestroy()
-
-    # show ticket popup
-    ui = @
-    @ticketPopupsList = @el.find('.ticket-popover').popover(
-      trigger:    'hover'
-      container:  'body'
-      html:       true
-      animation:  false
-      delay:      100
-      placement:  position
-      title: ->
-        ticketId = $(@).data('id')
-        ticket   = App.Ticket.find(ticketId)
-        App.Utils.htmlEscape(ticket.title)
-      content: ->
-        ticketId = $(@).data('id')
-        ticket   = App.Ticket.fullLocal(ticketId)
-        html = $(App.view('popover/ticket')(
-          ticket: ticket
-        ))
-        html.find('.humanTimeFromNow').each(->
-          ui.frontendTimeUpdateItem($(@))
-        )
-        html
-    )
-
-  ticketPopupsDestroy: =>
-    if @ticketPopupsList
-      @ticketPopupsList.popover('destroy')
-
-  userPopups: (position = 'right') ->
-
-    # open user in new task if current user is agent
-    return if !@permissionCheck('ticket.agent')
-    @$('div.user-popover, span.user-popover').bind('click', (e) =>
-      id = $(e.target).data('id')
-      return if !id
-      user = App.User.findNative(id)
-      @navigate user.uiUrl()
-    )
-
-    @userPopupsDestroy()
-
-    # show user popup
-    @userPopupsList = @el.find('.user-popover').popover(
-      trigger:    'hover'
-      container:  'body'
-      html:       true
-      animation:  false
-      delay:      100
-      placement:  "auto #{position}"
-      title: ->
-        userId = $(@).data('id')
-        user   = App.User.find(userId)
-        headline = App.Utils.htmlEscape(user.displayName())
-        if user.isOutOfOffice()
-          headline += " (#{App.Utils.htmlEscape(user.outOfOfficeText())})"
-        headline
-      content: ->
-        userId = $(@).data('id')
-        user   = App.User.fullLocal(userId)
-
-        # get display data
-        userData = []
-        for attributeName, attributeConfig of App.User.attributesGet('view')
-
-          # check if value for _id exists
-          name    = attributeName
-          nameNew = name.substr(0, name.length - 3)
-          if nameNew of user
-            name = nameNew
-
-          # add to show if value exists
-          if user[name] && attributeConfig.shown
-
-            # do not show firstname and lastname / already show via diplayName()
-            if name isnt 'firstname' && name isnt 'lastname' && name isnt 'organization'
-              userData.push attributeConfig
-
-        # insert data
-        App.view('popover/user')(
-          user:     user
-          userData: userData
-        )
-    )
-
-  userPopupsDestroy: =>
-    if @userPopupsList
-      @userPopupsList.popover('destroy')
-
-  organizationPopups: (position = 'right') ->
-
-    # open org in new task if current user agent
-    return if !@permissionCheck('ticket.agent')
-
-    @$('div.organization-popover, span.organization-popover').bind('click', (e) =>
-      id = $(e.target).data('id')
-      return if !id
-      organization = App.Organization.find(id)
-      @navigate organization.uiUrl()
-    )
-
-    @organizationPopupsDestroy()
-
-    # show organization popup
-    @organizationPopupsList = @el.find('.organization-popover').popover(
-      trigger:    'hover'
-      container:  'body'
-      html:       true
-      animation:  false
-      delay:      100
-      placement:  "auto #{position}"
-      title: ->
-        organization_id = $(@).data('id')
-        organization    = App.Organization.find(organization_id)
-        App.Utils.htmlEscape(organization.name)
-      content: ->
-        organization_id = $(@).data('id')
-        organization    = App.Organization.fullLocal(organization_id)
-
-        # get display data
-        organizationData = []
-        for attributeName, attributeConfig of App.Organization.attributesGet('view')
-
-          # check if value for _id exists
-          name    = attributeName
-          nameNew = name.substr(0, name.length - 3)
-          if nameNew of organization
-            name = nameNew
-
-          # add to show if value exists
-          if organization[name] && attributeConfig.shown
-
-            # do not show firstname and lastname / already show via diplayName()
-            if name isnt 'name'
-              organizationData.push attributeConfig
-
-        # insert data
-        App.view('popover/organization')(
-          organization:     organization,
-          organizationData: organizationData,
-        )
-    )
-
-  organizationPopupsDestroy: =>
-    if @organizationPopupsList
-      @organizationPopupsList.popover('destroy')
-
-  userTicketPopups: (params) ->
-
-    show = (data, ticket_list) =>
-
-      if !data.position
-        data.position = 'left'
-
-      @userTicketPopupsDestroy()
-
-      # show user popup
-      ui = @
-      @userTicketPopupsList = @el.find(data.selector).popover(
-        trigger:    'hover'
-        container:  'body'
-        html:       true
-        animation:  false
-        delay:      100
-        placement:  "auto #{data.position}"
-        title: ->
-          $(@).find('[title="*"]').val()
-
-        content: ->
-          type = $(@).filter('[data-type]').data('type')
-          tickets = []
-          if ticket_list[type]
-            for ticketId in ticket_list[type]
-              tickets.push App.Ticket.fullLocal(ticketId)
-
-          # insert data
-          html = $(App.view('popover/user_ticket_list')(
-            tickets: tickets
-          ))
-          html.find('.humanTimeFromNow').each( ->
-            ui.frontendTimeUpdateItem($(@))
-          )
-          html
-      )
-
-    fetch = (params) =>
-      @ajax(
-        type:  'GET'
-        url:   "#{@Config.get('api_path')}/ticket_customer"
-        data:
-          customer_id: params.user_id
-        processData: true
-        success: (data, status, xhr) ->
-          App.Collection.loadAssets(data.assets)
-          show(params, { open: data.ticket_ids_open, closed: data.ticket_ids_closed })
-      )
-
-    # get data
-    fetch(params)
-
-  userTicketPopupsDestroy: =>
-    if @userTicketPopupsList
-      @userTicketPopupsList.popover('destroy')
-
-  anyPopoversDestroy: ->
-
-    # do not remove permanent .popover--notifications widget
-    $('.popover:not(.popover--notifications)').remove()
-
   recentView: (object, o_id) =>
     params =
       object: object
@@ -550,6 +336,10 @@ class App.Controller extends Spine.Controller
   stopPropagation: (e) ->
     e.stopPropagation()
 
+  preventDefaultAndStopPropagation: (e) ->
+    e.preventDefault()
+    e.stopPropagation()
+
   startLoading: (el) =>
     return if @initLoadingDone && !el
     @initLoadingDone = true
@@ -564,22 +354,6 @@ class App.Controller extends Spine.Controller
   stopLoading: =>
     return if !@initLoadingDoneDelay
     @clearDelay(@initLoadingDoneDelay)
-
-  renderScreenSuccess: (data) ->
-    App.TaskManager.touch(@taskKey) if @taskKey
-    (data.el || @).html App.view('generic/error/success')(data)
-
-  renderScreenError: (data) ->
-    App.TaskManager.touch(@taskKey) if @taskKey
-    (data.el || @).html App.view('generic/error/generic')(data)
-
-  renderScreenNotFound: (data) ->
-    App.TaskManager.touch(@taskKey) if @taskKey
-    (data.el || @).html App.view('generic/error/not_found')(data)
-
-  renderScreenUnauthorized: (data) ->
-    App.TaskManager.touch(@taskKey) if @taskKey
-    (data.el || @).html App.view('generic/error/unauthorized')(data)
 
   locationVerify: (e) =>
     newLocation = $(e.currentTarget).attr 'href'
@@ -641,8 +415,14 @@ class App.ControllerSubContent extends App.Controller
     super
 
   show: =>
+    if @genericController && @genericController.show
+      @genericController.show()
     return if !@header
     @title @header, true
+
+  hide: =>
+    if @genericController && @genericController.hide
+      @genericController.hide()
 
 class App.ControllerContent extends App.Controller
   constructor: ->
@@ -663,6 +443,7 @@ class App.ControllerModal extends App.Controller
   large: false
   small: false
   head: '?'
+  autoFocusOnFirstInput: true
   container: null
   buttonClass: 'btn--success'
   centerButtons: []
@@ -676,6 +457,7 @@ class App.ControllerModal extends App.Controller
   closeOnAnyClick: false
   initalFormParams: {}
   initalFormParamsIgnore: false
+  showTrySupport: false
   showTryMax: 10
   showTrydelay: 1000
 
@@ -722,7 +504,7 @@ class App.ControllerModal extends App.Controller
       content = @contentInline
     else
       content = @content()
-    modal = $(App.view('modal')
+    modal = $(App.view('modal')(
       head:              @head
       headPrefix:        @headPrefix
       message:           @message
@@ -734,7 +516,7 @@ class App.ControllerModal extends App.Controller
       buttonClass:       @buttonClass
       centerButtons:     @centerButtons
       leftButtons:       @leftButtons
-    )
+    ))
     modal.find('.modal-body').html(content)
     if !@initRenderingDone
       @initRenderingDone = true
@@ -750,7 +532,7 @@ class App.ControllerModal extends App.Controller
     @el
 
   render: =>
-    if @modalAlreadyExists() && @showTryCount <= @showTryMax
+    if @showTrySupport is true && @modalAlreadyExists() && @showTryCount <= @showTryMax
       @showDelayed()
       return
 
@@ -801,6 +583,16 @@ class App.ControllerModal extends App.Controller
       return @formParam(@container.find('.modal form'))
     return @formParam(@$('.modal form'))
 
+  showAlert: (message, suffix = 'danger') ->
+    alert = $('<div>')
+      .addClass("alert alert--#{suffix}")
+      .text(message)
+
+    @$('.modal-alerts-container').html(alert)
+
+  clearAlerts: ->
+    @$('.modal-alerts-container').empty()
+
   localOnShow: (e) =>
     @onShow(e)
 
@@ -811,7 +603,8 @@ class App.ControllerModal extends App.Controller
     @onShown(e)
 
   onShown: (e) =>
-    @$('input:not([disabled]):not([type="hidden"]):not(".btn"), textarea').first().focus()
+    if @autoFocusOnFirstInput
+      @$('input:not([disabled]):not([type="hidden"]):not(".btn"), textarea').first().focus()
     @initalFormParams = @formParams()
 
   localOnClose: (e) =>
@@ -827,7 +620,7 @@ class App.ControllerModal extends App.Controller
 
   localOnClosed: (e) =>
     @onClosed(e)
-    $('.modal').remove()
+    @el.modal('remove')
 
   onClosed: (e) ->
     # do nothing
@@ -848,9 +641,12 @@ class App.ControllerModal extends App.Controller
   submit: (e) =>
     e.stopPropagation()
     e.preventDefault()
+    @clearAlerts()
     @onSubmit(e)
 
 class App.SessionMessage extends App.ControllerModal
+  showTrySupport: true
+
   onCancel: (e) =>
     if @forceReload
       @windowReload(e)

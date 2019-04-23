@@ -1,29 +1,28 @@
-
 require 'test_helper'
 
 class EmailProcessOutOfOfficeTest < ActiveSupport::TestCase
 
   test 'process with out of office check - ms' do
 
-    ticket = Ticket.create(
-      title: 'ooo check - ms',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+    ticket = Ticket.create!(
+      title:         'ooo check - ms',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'ooo check',
-      message_id: '<20150830145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message bounce check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+    article = Ticket::Article.create!(
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'ooo check',
+      message_id:    '<20150830145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message bounce check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -91,25 +90,25 @@ Some Text"
 
   test 'process with out of office check - zimbra' do
 
-    ticket = Ticket.create(
-      title: 'ooo check - zimbra',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+    ticket = Ticket.create!(
+      title:         'ooo check - zimbra',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'ooo check',
-      message_id: '<20150830145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message bounce check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+    article = Ticket::Article.create!(
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'ooo check',
+      message_id:    '<20150830145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message bounce check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -169,25 +168,25 @@ Some Text"
 
   test 'process with out of office check - cloud' do
 
-    ticket = Ticket.create(
-      title: 'ooo check - cloud',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+    ticket = Ticket.create!(
+      title:         'ooo check - cloud',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'ooo check',
-      message_id: '<20150830145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message bounce check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+    article = Ticket::Article.create!(
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'ooo check',
+      message_id:    '<20150830145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message bounce check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -242,25 +241,25 @@ Some Text"
 
   test 'process with out of office check - gmail' do
 
-    ticket = Ticket.create(
-      title: 'ooo check - gmail',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'closed'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+    ticket = Ticket.create!(
+      title:         'ooo check - gmail',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'closed'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article = Ticket::Article.create(
-      ticket_id: ticket.id,
-      from: 'some_sender@example.com',
-      to: 'some_recipient@example.com',
-      subject: 'ooo check',
-      message_id: '<20150830145601.30.608881@edenhofer.zammad.com>',
-      body: 'some message bounce check',
-      internal: false,
-      sender: Ticket::Article::Sender.lookup(name: 'Agent'),
-      type: Ticket::Article::Type.lookup(name: 'email'),
+    article = Ticket::Article.create!(
+      ticket_id:     ticket.id,
+      from:          'some_sender@example.com',
+      to:            'some_recipient@example.com',
+      subject:       'ooo check',
+      message_id:    '<20150830145601.30.608881@edenhofer.zammad.com>',
+      body:          'some message bounce check',
+      internal:      false,
+      sender:        Ticket::Article::Sender.lookup(name: 'Agent'),
+      type:          Ticket::Article::Type.lookup(name: 'email'),
       updated_by_id: 1,
       created_by_id: 1,
     )

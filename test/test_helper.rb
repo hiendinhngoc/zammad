@@ -1,28 +1,14 @@
 ENV['RAILS_ENV'] = 'test'
-require File.expand_path('../../config/environment', __FILE__)
+require File.expand_path('../config/environment', __dir__)
 require 'rails/test_help'
 require 'cache'
-require 'simplecov'
-require 'simplecov-rcov'
-require 'coveralls'
-Coveralls.wear!
+
+require 'test_support_helper'
 
 class ActiveSupport::TestCase
 
   ActiveRecord::Base.logger = Rails.logger.clone
   ActiveRecord::Base.logger.level = Logger::INFO
-
-  # Setup all fixtures in test/fixtures/*.(yml|csv) for all tests in alphabetical order.
-  #
-  # Note: You'll currently still have to declare fixtures explicitly in integration tests
-  # -- they do not yet inherit this setting
-  SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter.new([
-                                                                   SimpleCov::Formatter::RcovFormatter,
-                                                                   Coveralls::SimpleCov::Formatter
-                                                                 ])
-  merge_timeout = 3600
-  SimpleCov.start
-  fixtures :all
 
   # clear cache
   Cache.clear
@@ -39,6 +25,7 @@ class ActiveSupport::TestCase
     # exit all threads
     Thread.list.each do |thread|
       next if thread == Thread.current
+
       thread.exit
       thread.join
     end
@@ -63,6 +50,10 @@ class ActiveSupport::TestCase
     travel_back
   end
 
+  teardown do
+    travel_back
+  end
+
   # Add more helper methods to be used by all tests here...
   def email_notification_count(type, recipient)
 
@@ -73,10 +64,11 @@ class ActiveSupport::TestCase
       lines.push line
     end
     count = 0
-    lines.reverse.each do |line|
+    lines.reverse_each do |line|
       break if line.match?(/\+\+\+\+NEW\+\+\+\+TEST\+\+\+\+/)
       next if line !~ /Send notification \(#{type}\)/
       next if line !~ /to:\s#{recipient}/
+
       count += 1
     end
     count
@@ -91,10 +83,11 @@ class ActiveSupport::TestCase
       lines.push line
     end
     count = 0
-    lines.reverse.each do |line|
+    lines.reverse_each do |line|
       break if line.match?(/\+\+\+\+NEW\+\+\+\+TEST\+\+\+\+/)
       next if line !~ /Send email to:/
       next if line !~ /to:\s'#{recipient}'/
+
       count += 1
     end
     count

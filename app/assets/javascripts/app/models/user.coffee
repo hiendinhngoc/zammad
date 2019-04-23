@@ -105,6 +105,7 @@ class App.User extends App.Model
       placement: placement
       vip: vip
       url: @imageUrl()
+      initials: @initials()
 
   isOutOfOffice: ->
     return false if @out_of_office isnt true
@@ -254,7 +255,19 @@ class App.User extends App.Model
       return access if access
     false
 
-  all_group_ids: (permission = 'full') ->
+  ###
+
+    Returns a list of all groups for which the user is permitted to perform the given permission key
+
+    user = App.User.find(3)
+    result = user.allGroupIds('change') # access to a given permission key
+
+  returns
+
+    ["1", "2"]
+
+  ###
+  allGroupIds: (permission = 'full') ->
     group_ids = []
     user_group_ids = App.Session.get('group_ids')
     if user_group_ids
@@ -266,7 +279,7 @@ class App.User extends App.Model
     if user_role_ids
       for role_id in user_role_ids
         if App.Role.exists(role_id)
-          role = App.Role.find(role_id)
+          role = App.Role.findNative(role_id)
           if role.group_ids
             for local_group_id, local_permission of role.group_ids
               if _.include(local_permission, permission) || _.include(local_permission, 'full')
@@ -285,3 +298,55 @@ class App.User extends App.Model
   outOfOfficeText: ->
     return @preferences.out_of_office_text if !_.isEmpty(@preferences.out_of_office_text)
     App.User.outOfOfficeTextPlaceholder()
+
+  ###
+
+    Checks if requester has given access level on requested.
+    Possible access levels are: read, update and delete
+    See backend method User#access?
+
+    requester = App.User.find(1)
+    requested = App.User.find(3)
+    result    = requested.isAccessibleBy(requester, 'read')
+
+  returns
+
+    true|false
+
+  ###
+
+  isAccessibleBy: (requester, access) ->
+    return true if requester.permission('admin')
+
+    capitalized  = access.charAt(0).toUpperCase() + access.slice(1)
+    accessMethod = 'is' + capitalized + 'ableBy'
+    @[accessMethod](requester)
+
+  isReadableBy: (requester) ->
+    return true if @ownAccount(requester)
+    return true if requester.permission('admin.*')
+    return true if requester.permission('ticket.agent')
+    # check same organization for customers
+    return false if !requester.permission('ticket.customer')
+    @sameOrganization?(requester)
+
+  isChangeableBy: (requester) ->
+    return true if requester.permission('admin.user')
+    # allow agents to change customers
+    return false if !requester.permission('ticket.agent')
+    @permission('ticket.customer')
+
+  isDeleteableBy: (requester) ->
+    requester.permission('admin.user')
+
+  ownAccount: (requester) ->
+    @id is requester.id
+
+  sameOrganization: (requester) ->
+    return false if @organization_id is null
+    return false if requester.organization_id is null
+    @organization_id == requester.organization_id
+
+  # Do NOT modify the return value of this method!
+  # It is a direct reference to a value in the App.User.irecords object.
+  @current: App.Session.get

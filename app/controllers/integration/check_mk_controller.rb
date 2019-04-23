@@ -54,18 +54,19 @@ UserAgent: #{request.env['HTTP_USER_AGENT']}
       ticket_ids_found.each do |ticket_id|
         ticket = Ticket.find_by(id: ticket_id)
         next if !ticket
+
         article = Ticket::Article.create!(
           ticket_id: ticket_id,
-          type_id: Ticket::Article::Type.find_by(name: 'web').id,
+          type_id:   Ticket::Article::Type.find_by(name: 'web').id,
           sender_id: Ticket::Article::Sender.find_by(name: 'Customer').id,
-          body: body,
-          subject: title,
-          internal: false,
+          body:      body,
+          subject:   title,
+          internal:  false,
         )
       end
       if (!auto_close && params[:state].match(/#{state_recovery_match}/i)) || !params[:state].match(/#{state_recovery_match}/i)
         render json: {
-          result: 'ticket already open, added note',
+          result:     'ticket already open, added note',
           ticket_ids: ticket_ids_found,
         }
         return
@@ -84,39 +85,40 @@ UserAgent: #{request.env['HTTP_USER_AGENT']}
       ticket_ids_found.each do |ticket_id|
         ticket = Ticket.find_by(id: ticket_id)
         next if !ticket
+
         ticket.state_id = auto_close_state_id
         ticket.save!
       end
       render json: {
-        result: "closed tickets with ids #{ticket_ids_found.join(',')}",
+        result:     "closed tickets with ids #{ticket_ids_found.join(',')}",
         ticket_ids: ticket_ids_found,
       }
       return
     end
 
     ticket = Ticket.create!(
-      group_id: group_id,
+      group_id:    group_id,
       customer_id: customer.id,
-      title: title,
+      title:       title,
       preferences: {
         check_mk: {
-          host: params[:host],
+          host:    params[:host],
           service: params[:service],
         },
       }
     )
     article = Ticket::Article.create!(
       ticket_id: ticket.id,
-      type_id: Ticket::Article::Type.find_by(name: 'web').id,
+      type_id:   Ticket::Article::Type.find_by(name: 'web').id,
       sender_id: Ticket::Article::Sender.find_by(name: 'Customer').id,
-      body: body,
-      subject: title,
-      internal: false,
+      body:      body,
+      subject:   title,
+      internal:  false,
     )
 
     render json: {
-      result: "new ticket created (ticket id: #{ticket.id})",
-      ticket_id: ticket.id,
+      result:        "new ticket created (ticket id: #{ticket.id})",
+      ticket_id:     ticket.id,
       ticket_number: ticket.number,
     }
   end

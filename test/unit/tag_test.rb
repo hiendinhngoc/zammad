@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class TagTest < ActiveSupport::TestCase
@@ -8,14 +7,14 @@ class TagTest < ActiveSupport::TestCase
       # test 1
       {
         tag_add: {
-          item: 'tag1',
-          object: 'Object1',
-          o_id: 123,
+          item:          'tag1',
+          object:        'Object1',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:  {
           object: 'Object1',
-          items: {
+          items:  {
             'tag1' => true,
             'tag2' => false,
           },
@@ -25,14 +24,14 @@ class TagTest < ActiveSupport::TestCase
       # test 2
       {
         tag_add: {
-          item: 'tag2',
-          object: 'Object1',
-          o_id: 123,
+          item:          'tag2',
+          object:        'Object1',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:  {
           object: 'Object1',
-          items: {
+          items:  {
             'tag1' => true,
             'tag2' => true,
           },
@@ -41,14 +40,14 @@ class TagTest < ActiveSupport::TestCase
 
       {
         tag_add: {
-          item: 'TAG2',
-          object: 'Object1',
-          o_id: 123,
+          item:          'TAG2',
+          object:        'Object1',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:  {
           object: 'Object1',
-          items: {
+          items:  {
             'tag1' => true,
             'tag2' => true,
             'TAG2' => true,
@@ -59,14 +58,14 @@ class TagTest < ActiveSupport::TestCase
       # test 2
       {
         tag_add: {
-          item: 'tagöäüß1',
-          object: 'Object2',
-          o_id: 123,
+          item:          'tagöäüß1',
+          object:        'Object2',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:  {
           object: 'Object2',
-          items: {
+          items:  {
             'tagöäüß1' => true,
             'tag2'     => false,
           },
@@ -76,14 +75,14 @@ class TagTest < ActiveSupport::TestCase
       # test 4
       {
         tag_add: {
-          item: 'Tagöäüß2',
-          object: 'Object2',
-          o_id: 123,
+          item:          'Tagöäüß2',
+          object:        'Object2',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:  {
           object: 'Object2',
-          items: {
+          items:  {
             'tagöäüß1' => true,
             'Tagöäüß2' => true,
             'tagöäüß3' => false,
@@ -94,14 +93,14 @@ class TagTest < ActiveSupport::TestCase
       # test 5
       {
         tag_remove: {
-          item: 'tag1',
-          object: 'Object1',
-          o_id: 123,
+          item:          'tag1',
+          object:        'Object1',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:     {
           object: 'Object1',
-          items: {
+          items:  {
             'tag1' => false,
             'tag2' => true,
             'TAG2' => true,
@@ -112,14 +111,14 @@ class TagTest < ActiveSupport::TestCase
       # test 5
       {
         tag_remove: {
-          item: 'TAG2',
-          object: 'Object1',
-          o_id: 123,
+          item:          'TAG2',
+          object:        'Object1',
+          o_id:          123,
           created_by_id: 1
         },
-        verify: {
+        verify:     {
           object: 'Object1',
-          items: {
+          items:  {
             'tag1' => false,
             'tag2' => true,
             'TAG2' => false,
@@ -144,7 +143,7 @@ class TagTest < ActiveSupport::TestCase
         if value == true
           assert(list.include?(key), "Tag verify - should exists but exists #{key}")
         else
-          assert(!list.include?(key), "Tag verify - exists but should not #{key}")
+          assert_not(list.include?(key), "Tag verify - exists but should not #{key}")
         end
       end
     end
@@ -152,35 +151,31 @@ class TagTest < ActiveSupport::TestCase
     # delete tags
     tests.each do |test|
       tags = nil
-      tags = if test[:tag_add]
-               test[:tag_add]
-             else
-               test[:tag_remove]
-             end
+      tags = test[:tag_add] || test[:tag_remove]
       success = Tag.tag_remove(tags)
       assert(success, 'Tag.tag_remove successful')
       list = Tag.tag_list(tags)
-      assert(!list.include?(tags[:item]), 'Tag entry destroyed')
+      assert_not(list.include?(tags[:item]), 'Tag entry destroyed')
     end
   end
 
   test 'tags - real live' do
 
     ticket1 = Ticket.create(
-      title: 'some title tag1',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'new'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'some title tag1',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'new'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
     ticket2 = Ticket.create(
-      title: 'some title tag2',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
-      state: Ticket::State.lookup(name: 'new'),
-      priority: Ticket::Priority.lookup(name: '2 normal'),
+      title:         'some title tag2',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
+      state:         Ticket::State.lookup(name: 'new'),
+      priority:      Ticket::Priority.lookup(name: '2 normal'),
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -220,8 +215,8 @@ class TagTest < ActiveSupport::TestCase
     travel 2.seconds
     tag_item3 = Tag::Item.find_by(name: 'some tag3')
     Tag::Item.rename(
-      id: tag_item3.id,
-      name: ' some tag33',
+      id:            tag_item3.id,
+      name:          ' some tag33',
       created_by_id: 1,
     )
 
@@ -246,8 +241,8 @@ class TagTest < ActiveSupport::TestCase
     # merge tags
     travel 2.seconds
     Tag::Item.rename(
-      id: tag_item3.id,
-      name: 'some tag2',
+      id:            tag_item3.id,
+      name:          'some tag2',
       created_by_id: 1,
     )
 
@@ -297,16 +292,16 @@ class TagTest < ActiveSupport::TestCase
   test 'tags - rename tag with same name' do
 
     ticket1 = Ticket.create(
-      title: 'rename tag1',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
+      title:         'rename tag1',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
       updated_by_id: 1,
       created_by_id: 1,
     )
     ticket2 = Ticket.create(
-      title: 'rename tag2',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
+      title:         'rename tag2',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -327,8 +322,8 @@ class TagTest < ActiveSupport::TestCase
 
     tag_item1 = Tag::Item.find_by(name: 'some rename tag1')
     Tag::Item.rename(
-      id: tag_item1.id,
-      name: ' some rename tag1',
+      id:            tag_item1.id,
+      name:          ' some rename tag1',
       created_by_id: 1,
     )
 
@@ -346,16 +341,16 @@ class TagTest < ActiveSupport::TestCase
   test 'tags - rename and merge tag with existing tag' do
 
     ticket1 = Ticket.create(
-      title: 'rename tag1',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
+      title:         'rename tag1',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
       updated_by_id: 1,
       created_by_id: 1,
     )
     ticket2 = Ticket.create(
-      title: 'rename tag2',
-      group: Group.lookup(name: 'Users'),
-      customer_id: 2,
+      title:         'rename tag2',
+      group:         Group.lookup(name: 'Users'),
+      customer_id:   2,
       updated_by_id: 1,
       created_by_id: 1,
     )
